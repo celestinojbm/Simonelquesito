@@ -8,8 +8,8 @@ reales.
 | # | Dato | Dónde se configura | Quién lo proporciona |
 |---|------|---------------------|----------------------|
 | 1a | ~~Nombre comercial~~ **Resuelto**: "Simón El Quesito" | `src/db/presets.ts` (`brandingDefaults.name`) | — |
-| 1b | ~~Paleta de colores~~ **Aproximada** (leída a ojo del letrero: azul #1E6FBF, rojo #D62828, amarillo #F2C230 — confirmar o ajustar) | `src/db/presets.ts` (`brandingDefaults.colors`) | Propietario (confirmar exactitud) |
-| 1c | Logo/ícono en archivo limpio (vector o PNG con fondo transparente — la foto del letrero físico no sirve para íconos de la app) | `public/icons/logo.svg`, `icon-192.svg`, `icon-512.svg`, `public/manifest.webmanifest` | Propietario |
+| 1b | ~~Paleta de colores~~ **Resuelto** (leída del logo real: verde azulado #2F5350, rojo #DE3730, naranja #F3A93A, amarillo pálido #FFF8E7) | `src/db/presets.ts` (`brandingDefaults.colors`) | — |
+| 1c | Logo/ícono: hoy es una **recreación en SVG** (aprobada por el propietario), no el archivo original — si más adelante aparece el archivo real (vector o PNG con fondo transparente), reemplazarlo aquí | `public/icons/logo.svg`, `icon-192.svg`, `icon-512.svg`, `public/manifest.webmanifest` | Propietario (opcional, mejora la fidelidad) |
 | 2 | Razón social y NIT | Tabla `businesses` (`name`, `legal_name`, `tax_id`) | Propietario |
 | 3 | Dirección exacta del local | Tabla `branches.address_line` + setting `business.contact.address` | Propietario |
 | 4 | Teléfono y WhatsApp del negocio | Setting `business.contact` (`phone`, `whatsapp`) | Propietario |
