@@ -1,5 +1,5 @@
 {
-  "buildCommand": "BUSINESS_PRESET=salsamentaria npm run db:seed && next build",
+  "buildCommand": "if [ \"$SEED_ONCE\" = \"1\" ]; then BUSINESS_PRESET=salsamentaria npm run db:seed; fi && next build",
   "crons": [
     {
       "path": "/api/cron/canastas",
