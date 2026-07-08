@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run db:push && BUSINESS_PRESET=salsamentaria npm run db:seed && next build",
   "crons": [
     {
       "path": "/api/cron/canastas",
