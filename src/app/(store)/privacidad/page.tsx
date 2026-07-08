@@ -1,7 +1,7 @@
 import { getSetting } from "@/modules/config/service";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Política de privacidad · Market Castilla" };
+export const metadata = { title: "Política de privacidad" };
 
 /**
  * Política de tratamiento de datos personales (Ley 1581 de 2012 y
@@ -10,11 +10,14 @@ export const metadata = { title: "Política de privacidad · Market Castilla" };
  * del lanzamiento masivo — este texto es la base operativa honesta.
  */
 export default async function PrivacyPage() {
-  const contact = await getSetting("business.contact");
+  const [contact, branding] = await Promise.all([
+    getSetting("business.contact"),
+    getSetting("branding"),
+  ]);
   return (
     <article className="prose prose-sm mx-auto max-w-2xl text-ink [&_h2]:text-brand-dark">
       <h1 className="text-2xl font-extrabold text-brand-dark">Política de privacidad y tratamiento de datos</h1>
-      <p className="text-xs text-ink-soft">Última actualización: julio de 2026 · Responsable: Market Castilla (establecimiento de comercio, Bogotá D.C.) · Contacto: {contact.phone} · {contact.address}</p>
+      <p className="text-xs text-ink-soft">Última actualización: julio de 2026 · Responsable: {branding.name} (establecimiento de comercio, Bogotá D.C.) · Contacto: {contact.phone} · {contact.address}</p>
 
       <h2>Qué datos tratamos y para qué</h2>
       <ul>

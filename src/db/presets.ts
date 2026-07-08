@@ -175,7 +175,34 @@ export const BUSINESS_PRESETS: Record<string, BusinessPreset> = {
     ],
     restrictedRules: {},
     enablePoundUnit: true,
-    brandingDefaults: { businessType: "salsamentaria", tagline: "Embutidos, quesos y carnes frías de calidad" },
+    /**
+     * Marca real del cliente (Simón El Quesito — Salsamentaria). Colores
+     * leídos a ojo del logo oficial (verde azulado oscuro, rojo, naranja,
+     * amarillo pálido — sin azul, a diferencia de una lectura previa hecha
+     * sobre una foto del letrero físico). `logo.svg`/íconos siguen siendo un
+     * placeholder: falta el archivo de marca real (ver docs/PENDING_DATA.md).
+     */
+    brandingDefaults: {
+      businessType: "salsamentaria",
+      name: "Simón El Quesito",
+      tagline: "Salsamentaria",
+      slogan: "Los mejores embutidos, carnes frías y quesos de tu barrio",
+      seoDescription:
+        "Salsamentaria de barrio en Bogotá: embutidos, carnes frías y quesos seleccionados, con atención por WhatsApp/teléfono.",
+      colors: {
+        brand: "#2F5350",
+        brandDark: "#1D3634",
+        brandSoft: "#E1EEEC",
+        coral: "#DE3730",
+        coralDark: "#A82820",
+        sun: "#F3A93A",
+        cream: "#FFF8E7",
+        ink: "#1A1A1A",
+        inkSoft: "#4A4A4A",
+        liquor: "#8a5a18",
+        liquorSoft: "#f7edd8",
+      },
+    },
   },
 };
 

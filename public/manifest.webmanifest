@@ -1,11 +1,11 @@
 {
-  "name": "Market Castilla",
-  "short_name": "Market Castilla",
-  "description": "Tu minimarket de barrio en Bogotá: mercado fresco a domicilio.",
-  "start_url": "/",
+  "name": "Simón El Quesito",
+  "short_name": "Simón El Quesito",
+  "description": "Panel de administración — salsamentaria (embutidos, carnes frías y quesos) en Bogotá.",
+  "start_url": "/admin",
   "display": "standalone",
-  "background_color": "#FFFDF7",
-  "theme_color": "#16A765",
+  "background_color": "#FFF8E7",
+  "theme_color": "#2F5350",
   "lang": "es-CO",
   "icons": [
     { "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },

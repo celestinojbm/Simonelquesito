@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { coupons, promotions } from "@/db/schema";
 import { requirePermission } from "@/lib/auth/session";
 import { formatCop } from "@/lib/format";
+import { getSetting } from "@/modules/config/service";
 import {
   adminSetMarketingConsentAction,
   createPersonalCouponAction,
@@ -48,6 +49,7 @@ export default async function RetencionPage({
   searchParams: Promise<{ dias?: string; min?: string }>;
 }) {
   await requirePermission("customers.manage");
+  const { name: businessName } = await getSetting("branding");
   const sp = await searchParams;
   const days = Math.min(365, Math.max(3, Number(sp.dias) || 21));
   const minOrders = Math.min(20, Math.max(1, Number(sp.min) || 2));
@@ -294,8 +296,8 @@ export default async function RetencionPage({
                         ? `Usa el código ${promo.code} y llévate ${describePromo(promo.kind, promo.value)}. `
                         : "";
                   const msg = r.marketing
-                    ? `¡Hola ${firstName(r.nombre)}! 💜 En Market Castilla te extrañamos — hace ${r.dias} días que no pedías. ${promoLine}¿Te preparamos algo hoy? Contra entrega o para recoger 🛒`
-                    : `¡Hola ${firstName(r.nombre)}! 👋 Te saludamos desde Market Castilla. Si necesitas algo del mercado, con gusto te ayudamos 🛒`;
+                    ? `¡Hola ${firstName(r.nombre)}! 💜 En ${businessName} te extrañamos — hace ${r.dias} días que no pedías. ${promoLine}¿Te preparamos algo hoy? Contra entrega o para recoger 🛒`
+                    : `¡Hola ${firstName(r.nombre)}! 👋 Te saludamos desde ${businessName}. Si necesitas algo, con gusto te ayudamos 🛒`;
                   return (
                     <tr key={r.phone10}>
                       <td className="py-2 pr-3">
@@ -402,7 +404,7 @@ export default async function RetencionPage({
           <ul className="space-y-1.5">
             {carts.map((o) => {
               const phone10 = o.contact_phone.replace(/[^0-9]/g, "").slice(-10);
-              const msg = `¡Hola ${firstName(o.contact_name)}! 👋 Vimos que tu pedido ${o.number} en Market Castilla quedó a medias (${formatCop(o.total_cop)}). ¿Te ayudamos a completarlo? También puedes pagar contra entrega si lo prefieres 🛵`;
+              const msg = `¡Hola ${firstName(o.contact_name)}! 👋 Vimos que tu pedido ${o.number} en ${businessName} quedó a medias (${formatCop(o.total_cop)}). ¿Te ayudamos a completarlo? También puedes pagar contra entrega si lo prefieres 🛵`;
               return (
                 <li key={o.id} className="flex flex-wrap items-center gap-2 text-sm">
                   <Link href={`/admin/pedidos/${o.id}`} className="font-semibold text-brand-dark hover:underline">

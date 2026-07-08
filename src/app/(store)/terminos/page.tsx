@@ -2,19 +2,20 @@ import { getSetting } from "@/modules/config/service";
 import { formatCop } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Términos y condiciones · Market Castilla" };
+export const metadata = { title: "Términos y condiciones" };
 
 /** Términos del servicio. PENDIENTE revisión legal antes del lanzamiento masivo. */
 export default async function TermsPage() {
-  const [contact, freeFrom, plan] = await Promise.all([
+  const [contact, freeFrom, plan, branding] = await Promise.all([
     getSetting("business.contact"),
     getSetting("delivery.freeFromCop"),
     getSetting("premium.plan"),
+    getSetting("branding"),
   ]);
   return (
     <article className="prose prose-sm mx-auto max-w-2xl text-ink [&_h2]:text-brand-dark">
       <h1 className="text-2xl font-extrabold text-brand-dark">Términos y condiciones</h1>
-      <p className="text-xs text-ink-soft">Última actualización: julio de 2026 · Market Castilla · {contact.address} · {contact.phone}</p>
+      <p className="text-xs text-ink-soft">Última actualización: julio de 2026 · {branding.name} · {contact.address} · {contact.phone}</p>
 
       <h2>Pedidos y precios</h2>
       <ul>

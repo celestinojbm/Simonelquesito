@@ -1,13 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Market Castilla">
-  <!-- Fruta con "C": versión digital limpia del símbolo del aviso físico -->
-  <circle cx="32" cy="34" r="26" fill="#16A765"/>
-  <circle cx="32" cy="34" r="26" fill="none" stroke="#12613F" stroke-width="2"/>
-  <!-- hoja (verde) -->
-  <path d="M35 9c6-5 13-4 15-3-1 4-5 9-12 9-2 0-3-1-3-2z" fill="#12613F"/>
-  <path d="M33 12c-1-4 1-8 3-10" stroke="#12613F" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-  <!-- brillo -->
-  <path d="M17 26c2-6 7-10 12-11" stroke="#E8F6EE" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
-  <!-- C naranja con halo crema para legibilidad sobre el verde -->
-  <path d="M43.5 26.5a14 14 0 1 0 0 15" fill="none" stroke="#FFFDF7" stroke-width="10" stroke-linecap="round" opacity="0.9"/>
-  <path d="M43.5 26.5a14 14 0 1 0 0 15" fill="none" stroke="#F05A3C" stroke-width="7" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Simón El Quesito" width="512" height="512">
+  <!-- Placeholder simplificado (formas, no ilustración) mientras llega el archivo
+       real del logo (mascota + rótulo) — colores del logo oficial: amarillo
+       pálido, verde azulado oscuro, rojo, naranja. -->
+  <circle cx="32" cy="32" r="28" fill="#FFF3C4"/>
+  <circle cx="32" cy="32" r="28" fill="none" stroke="#2F5350" stroke-width="2"/>
+  <!-- cuña de queso -->
+  <path d="M18 40 L34 14 L50 40 Q50 47 34 47 Q18 47 18 40 Z" fill="#F3A93A" stroke="#C97F1E" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="30" cy="35" r="2.6" fill="#C97F1E"/>
+  <circle cx="39" cy="38" r="2" fill="#C97F1E"/>
+  <circle cx="35" cy="27" r="1.8" fill="#C97F1E"/>
+  <!-- acento rojo -->
+  <path d="M10 46a26 26 0 0 0 44 0" fill="none" stroke="#DE3730" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
 </svg>

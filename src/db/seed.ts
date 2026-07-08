@@ -1,6 +1,6 @@
 /**
- * Seed de demostración de Market Castilla.
- * Ejecutar: npm run db:seed  (idempotente: limpia y recrea los datos demo)
+ * Seed de demostración — instancia salsamentaria (plantilla marketcastilla).
+ * Ejecutar: BUSINESS_PRESET=salsamentaria npm run db:seed (idempotente: limpia y recrea los datos demo)
  *
  * Cuentas demo (contraseña de todas: demo1234):
  *   owner@marketcastilla.demo       — Propietario
@@ -48,21 +48,22 @@ async function main() {
   for (const table of tables) await db.delete(table);
 
   console.log("→ Negocio y sucursal…");
-  const businessId = "biz_marketcastilla";
+  // Razón social, NIT y dirección son PENDIENTES (ver docs/PENDING_DATA.md
+  // #2-3) — nunca se inventan ni se heredan de otro negocio de la plantilla.
+  const businessId = "biz_salsamentaria";
   await db.insert(s.businesses).values({
     id: businessId,
-    name: "Market Castilla",
-    // Según Cámara de Comercio de Bogotá (matrícula 03952291) y RUT:
-    legalName: "Urrego Linares Diana Rocío (establecimiento MARKET CASTILLA)",
-    taxId: "1012318746-7",
+    name: "Simón El Quesito",
+    legalName: "PENDIENTE — razón social real",
+    taxId: "PENDIENTE",
   });
-  const branchId = "brn_castilla_principal";
+  const branchId = "brn_principal";
   await db.insert(s.branches).values({
     id: branchId,
     businessId,
-    name: "Market Castilla — Principal",
-    addressLine: "Cra 79 #10D-60", // dirección comercial registrada en CCB
-    neighborhood: "Castilla",
+    name: "Simón El Quesito — Principal",
+    addressLine: "PENDIENTE — dirección real del local",
+    neighborhood: "PENDIENTE",
     city: "Bogotá",
   });
 
@@ -117,17 +118,15 @@ async function main() {
   await db.insert(s.loyaltyAccounts).values({ id: id("loy"), customerId, pointsBalance: 0 });
 
   console.log("→ Zonas de entrega…");
-  // Zona única de cobertura real (Castilla, Kennedy, Tintal y alrededores).
-  // Tarifa plana de $2.000 para pedidos menores a $20.000; gratis desde
-  // $20.000 (usa delivery.freeFromCop global). Sin pedido mínimo.
+  // Zona/barrios/tarifas DEMO heredados de la plantilla — PENDIENTES de
+  // reemplazar por la cobertura real de este negocio (ver PENDING_DATA.md
+  // #7). El id y los valores numéricos los usa el vertical slice de tests
+  // heredado del motor compartido: no cambiarlos sin actualizar los tests.
   const zones = [
     {
       id: "zon_castilla",
-      name: "Cobertura Market Castilla",
-      neighborhoods: [
-        "Castilla", "Nueva Castilla", "Villa Alsacia", "Tintal", "Tintala",
-        "Marsella", "Kennedy", "Kennedy Central", "Mandalay", "Banderas", "Hayuelos",
-      ],
+      name: "Zona demo — PENDIENTE reemplazar con cobertura real",
+      neighborhoods: ["PENDIENTE"],
       feeCop: 2000,
       minOrderCop: 10000,
       etaMin: 20,
