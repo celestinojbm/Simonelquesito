@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" role="img" aria-label="snacks">
+  <rect width="400" height="300" fill="#E8F6EE"/>
+  <circle cx="330" cy="40" r="90" fill="#16A765" opacity="0.08"/>
+  <circle cx="60" cy="260" r="70" fill="#16A765" opacity="0.10"/>
+  <text x="200" y="175" font-size="110" text-anchor="middle">🍿</text>
+</svg>

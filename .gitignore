@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+
+# env — nunca subir secretos al repositorio
+.env
+.env.local
+.env.*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# testing
+coverage/
+
+# drizzle local artifacts
+drizzle/meta/_journal.bak
+
+# OS
+.DS_Store
+tsconfig.tsbuildinfo

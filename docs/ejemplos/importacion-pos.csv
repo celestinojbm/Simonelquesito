@@ -1,0 +1,6 @@
+sku,codigo_barras,nombre,categoria,precio,costo,stock
+ABA-001,7702511000123,Arroz Diana,Abarrotes,4900,3900,120
+ABA-010,7702511000456,Lenteja La Garza 500 g,Abarrotes,4200,3300,45
+BEB-010,7702004001234,Gaseosa Manzana Postobón 1.5 L,Bebidas y gaseosas,5800,4500,30
+ASE-010,7506339301234,Suavizante Suavitel 1 L,Aseo del hogar,9800,7600,25
+SNA-010,7702025101234,Galletas Festival vainilla,Snacks,2800,2100,60
