@@ -22,20 +22,11 @@ export const BASE_NAV: AdminNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "📊", perm: "reports.view", activeFor: ["/admin/analitica"] },
   { href: "/admin/caja", label: "Caja", icon: "🛒", perm: "orders.manage" },
   { href: "/admin/pedidos", label: "Pedidos", icon: "🧾", perm: "orders.view" },
-  { href: "/admin/canastas", label: "Canastas", icon: "🧺", perm: "orders.manage" },
   { href: "/admin/productos", label: "Productos", icon: "🛍️", perm: "catalog.manage" },
   { href: "/admin/inventario", label: "Inventario", icon: "📦", perm: "inventory.view" },
-  { href: "/admin/importar", label: "Importar POS", icon: "🔄", perm: "pos.sync" },
   { href: "/admin/mensajes", label: "Mensajes", icon: "💬", perm: "orders.view" },
-  { href: "/admin/whatsapp", label: "Bot WhatsApp", icon: "🤖", perm: "orders.manage" },
-  { href: "/admin/promociones", label: "Promociones", icon: "🎟️", perm: "coupons.manage" },
-  { href: "/admin/retencion", label: "Retención", icon: "💜", perm: "customers.manage" },
-  { href: "/admin/fiado", label: "Fiado & Premium", icon: "📒", perm: "customers.manage" },
-  { href: "/admin/identidades", label: "Identidades", icon: "🪪", perm: "customers.manage" },
-  { href: "/admin/comision", label: "Comisión digital", icon: "🧮", perm: "commission.view" },
-  { href: "/admin/integraciones", label: "Integraciones", icon: "🔌", perm: "integrations.manage" },
+  { href: "/admin/fiado", label: "Fiado", icon: "📒", perm: "customers.manage" },
   { href: CONFIG_HREF, label: "Configuración", icon: "⚙️", perm: "settings.view", activeFor: ["/admin/configuracion/fondos", "/admin/configuracion/panel"] },
-  { href: "/admin/auditoria", label: "Auditoría", icon: "🛡️", perm: "audit.view" },
 ];
 
 export type AdminPanelConfig = SettingValue<"admin.panel">;

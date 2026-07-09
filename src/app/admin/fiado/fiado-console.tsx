@@ -1,11 +1,10 @@
 "use client";
 
-// Consola de Fiado & Premium (componente cliente del panel).
+// Consola de Fiado (componente cliente del panel).
 import { useState, useTransition } from "react";
 import { useToast } from "@/components/ui/toast";
 import {
   archiveCreditAccountAction,
-  cancelMembershipAction,
   creditLimitAction,
   creditPaymentAction,
   creditPurchaseAction,
@@ -26,17 +25,6 @@ type AccountRow = {
   nextDue: string | null;
   channel: string;
   vouchedBy: string | null;
-  membership: string;
-};
-
-/** Membresía de un cliente que NO tiene cuenta de fiado (ej. activada desde la app). */
-type MemberRow = {
-  customerId: string;
-  name: string;
-  phone: string;
-  membership: string; // "activa" | "cancelada" | "vencida"
-  channel: string;
-  periodEnd: string;
 };
 
 /** Cuenta eliminada de la cartera (historial de 90 días, restaurable). */
@@ -53,12 +41,10 @@ const inputCls = "w-full rounded-lg border border-brand-soft bg-white px-3 py-2 
 export function FiadoConsole({
   rules,
   accounts,
-  members,
   archived,
 }: {
   rules: { initialLimitCop: number; maxLimitCop: number; singleInstallmentMaxCop: number; maxInstallments: number };
   accounts: AccountRow[];
-  members: MemberRow[];
   archived: ArchivedRow[];
 }) {
   const [pending, startTransition] = useTransition();
@@ -145,7 +131,7 @@ export function FiadoConsole({
       {/* Cartera */}
       <section className="rounded-card border border-brand-soft bg-white p-4">
         <h2 className="mb-1 font-bold text-ink">📒 Cartera</h2>
-        <p className="mb-2 text-xs text-ink-soft">Toca un cliente para abrir sus acciones (fiado, abono, cupo, membresía).</p>
+        <p className="mb-2 text-xs text-ink-soft">Toca un cliente para abrir sus acciones (fiado, abono, cupo).</p>
         {accounts.length === 0 ? (
           <p className="py-4 text-center text-sm text-ink-soft">Sin cuentas de fiado todavía. Da de alta al primer cliente arriba.</p>
         ) : (
@@ -173,7 +159,6 @@ export function FiadoConsole({
                   <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${a.status === "active" ? "bg-brand-soft text-brand-dark" : "bg-sun text-ink"}`}>
                     {a.status === "active" ? "activo" : a.status === "paused" ? "pausado" : "cerrado"}
                   </span>
-                  <span className="text-xs text-ink-soft">membresía: {a.membership}</span>
                   <span className="hidden text-xs text-ink-soft sm:inline">{selected === a.customerId ? "▲ cerrar" : "▼ abrir"}</span>
                 </button>
 
@@ -259,20 +244,6 @@ export function FiadoConsole({
                       >
                         🗑 Eliminar de la cartera
                       </button>
-                      {sel.membership === "activa" ? (
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => run(() => cancelMembershipAction(sel.customerId), "Membresía cancelada.")}
-                          className="btn w-full rounded-full border border-coral/40 px-3 py-1.5 text-xs font-semibold text-coral-dark"
-                        >
-                          Cancelar membresía
-                        </button>
-                      ) : (
-                        <p className="rounded-lg bg-brand-soft/40 px-3 py-2 text-[11px] text-ink-soft">
-                          ⭐ Membresía premium: {sel.membership}. Se activa desde la app del cliente.
-                        </p>
-                      )}
                     </div>
                   </div>
                 )}
@@ -288,7 +259,7 @@ export function FiadoConsole({
           <h2 className="mb-1 font-bold text-ink">🗄 Historial de eliminados</h2>
           <p className="mb-3 text-xs text-ink-soft">
             Cuentas eliminadas de la cartera. Se conservan aquí 90 días y se pueden restaurar; su
-            historial contable queda siempre en la auditoría.
+            historial contable queda siempre registrado en el ledger.
           </p>
           <ul className="divide-y divide-brand-soft">
             {archived.map((a) => (
@@ -313,50 +284,6 @@ export function FiadoConsole({
           </ul>
         </section>
       )}
-
-      {/* Membresías de clientes sin fiado (ej. activadas desde la app) */}
-      <section className="rounded-card border border-brand-soft bg-white p-4">
-        <h2 className="mb-1 font-bold text-ink">⭐ Membresías premium (sin fiado)</h2>
-        <p className="mb-3 text-xs text-ink-soft">
-          Clientes con membresía —activada desde la app— que aún no tienen cuenta de fiado. Para
-          abrirles fiado usa «Registrar fiado» arriba (mismo celular: reutiliza la ficha). La
-          membresía se activa solo desde la app.
-        </p>
-        {members.length === 0 ? (
-          <p className="py-3 text-center text-sm text-ink-soft">
-            Ninguna por ahora. Las membresías que se activen desde la app aparecerán aquí.
-          </p>
-        ) : (
-          <ul className="divide-y divide-brand-soft">
-            {members.map((m) => (
-              <li key={m.customerId} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5">
-                <span className="min-w-0 flex-1">
-                  <span className="font-semibold text-ink">{m.name || "Sin nombre"}</span>{" "}
-                  <span className="text-xs text-ink-soft">{m.phone}</span>
-                </span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${m.membership === "activa" ? "bg-brand-soft text-brand-dark" : "bg-sun text-ink"}`}>
-                  {m.membership}
-                </span>
-                <span className="text-xs text-ink-soft">
-                  {m.channel === "in_store" ? "mostrador" : "app"} · vence {new Date(m.periodEnd).toLocaleDateString("es-CO")}
-                </span>
-                {m.membership === "activa" ? (
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => run(() => cancelMembershipAction(m.customerId), "Membresía cancelada.")}
-                    className="btn rounded-full border border-coral/40 px-3 py-1.5 text-xs font-semibold text-coral-dark"
-                  >
-                    Cancelar
-                  </button>
-                ) : (
-                  <span className="text-[11px] text-ink-soft">Se reactiva desde la app</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }

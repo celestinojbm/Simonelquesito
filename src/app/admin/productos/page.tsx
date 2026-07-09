@@ -57,8 +57,7 @@ export default async function AdminProductsPage() {
       <div>
         <h1 className="text-2xl font-extrabold text-ink">Productos</h1>
         <p className="text-sm text-ink-soft">
-          Agrega artículos a mano (con foto y escáner de código de barras) o usa la{" "}
-          <Link href="/admin/importar" className="font-semibold text-brand-dark underline">importación CSV desde Treinta</Link>.
+          Agrega artículos a mano, con foto y escáner de código de barras.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <Link
