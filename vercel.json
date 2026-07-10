@@ -1,3 +1,9 @@
 {
-  "buildCommand": "next build"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "next build",
+  "git": {
+    "deploymentEnabled": {
+      "fix/p0-disable-production-demo-access": false
+    }
+  }
 }

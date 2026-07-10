@@ -15,7 +15,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
-    "demo": "npm run db:push && npm run db:seed && next dev"
+    "owner:create": "tsx src/db/create-owner.ts",
+    "demo:revoke-sessions": "tsx src/db/revoke-demo-sessions.ts",
+    "demo": "DEMO_MODE=true npm run db:push && DEMO_MODE=true npm run db:seed && next dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

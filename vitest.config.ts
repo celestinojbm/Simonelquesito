@@ -10,7 +10,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    setupFiles: ["./src/db/load-env.ts"],
+    // Orden importante: primero carga el entorno, luego la GUARDIA de BD local
+    // (rechaza DATABASE_URL remota antes de que cualquier suite importe el pool).
+    setupFiles: ["./src/db/load-env.ts", "./tests/setup-local-db-guard.ts"],
     // Los tests de integración comparten la BD de desarrollo;
     // se ejecutan en serie para evitar interferencias de inventario.
     fileParallelism: false,

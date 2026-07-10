@@ -14,7 +14,7 @@ PWA de comercio para un minimarket de barrio en Bogotá (Colombia). Este documen
 | ORM | Drizzle ORM + drizzle-kit | Driver `pg` (node-postgres), pool en `src/db/index.ts` |
 | Tests | Vitest | `npm run test` |
 
-Scripts relevantes: `db:push`, `db:generate`, `db:migrate` (drizzle-kit), `db:seed` (`tsx src/db/seed.ts`) y `demo` (push + seed + dev).
+Scripts relevantes: `db:push`, `db:generate`, `db:migrate` (drizzle-kit), `db:seed` (`tsx src/db/seed.ts` — **reset demo destructivo, solo dev/CI/demo, nunca producción**), `owner:create` (bootstrap del primer propietario real, no-destructivo), `demo:revoke-sessions` y `demo` (push + seed + dev).
 
 ## Decisión: Drizzle vs Prisma
 

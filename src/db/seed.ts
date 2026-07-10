@@ -14,15 +14,30 @@
  */
 import "./load-env";
 import { eq, sql } from "drizzle-orm";
-import { db } from "./index";
+import type { Db } from "./index";
 import * as s from "./schema";
 import { BUSINESS_PRESETS, getPreset } from "./presets";
 import { hashPassword } from "@/lib/auth/password";
 import { ROLE_PERMISSIONS } from "@/lib/auth/permissions";
 import { settingsDefaults, settingsSchemas, type SettingKey } from "@/modules/config/keys";
 import { id } from "@/lib/ids";
+import { assertDemoSeedAllowed } from "@/lib/auth/demo";
+import { assertLocalDatabaseUrl } from "./assert-local-db";
+// NOTA: `db` (que crea el pool en ./index) se importa DINÁMICAMENTE dentro de
+// main(), SOLO después de que pasen las guardas.
 
 async function main() {
+  // P0 — hard-gate DESTRUCTIVO. Este seed hace un RESET DEMO: borra TODAS las
+  // tablas y recrea la instancia demo (`*.demo` / demo1234). Doble bloqueo, ANTES
+  // de crear la conexión, ejecutar extensiones, abrir transacción o el primer
+  // DELETE: (1) no-producción + DEMO_MODE=true; (2) DATABASE_URL loopback.
+  // (Ambas lanzan; el catch de abajo imprime el mensaje y sale 1.)
+  assertDemoSeedAllowed();
+  assertLocalDatabaseUrl(process.env.DATABASE_URL);
+
+  // La conexión (pool de ./index) se crea SOLO ahora, tras pasar las guardas.
+  const { db } = await import("./index");
+
   console.log("→ Extensiones y secuencias…");
   await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
   await db.execute(sql`CREATE EXTENSION IF NOT EXISTS unaccent`);
@@ -179,7 +194,7 @@ async function main() {
     })
     .where(eq(s.settings.key, "branding"));
   if (presetKey === "minimarket") {
-    await seedDemoCatalog(locationId);
+    await seedDemoCatalog(db, locationId);
   } else {
     console.log("   (sin productos demo: el negocio importa su catálogo real)");
   }
@@ -200,7 +215,7 @@ async function main() {
 }
 
 /** Catálogo de demostración — solo para el preset minimarket. */
-async function seedDemoCatalog(locationId: string) {
+async function seedDemoCatalog(db: Db, locationId: string) {
 
   console.log("→ Productos y variantes…");
   type P = {
@@ -425,6 +440,6 @@ async function seedDemoCatalog(locationId: string) {
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error(e instanceof Error ? e.message : e);
   process.exit(1);
 });
