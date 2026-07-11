@@ -32,6 +32,11 @@ Las cuentas `@marketcastilla.demo` **no** cuentan como propietarios reales.
 
 ## Secuencia operacional (evita lockout)
 
+> **Prerrequisito (PENDIENTE):** confirmar manualmente en el panel de Supabase
+> (`Database → Backups`) que existe un respaldo/PITR restaurable con retención
+> conocida **antes** de cualquier escritura productiva. Mientras no se verifique,
+> el bootstrap queda bloqueado (`BLOQUEADO — RECUPERACIÓN INSUFICIENTE`).
+
 ### 1) Ejecutar el bootstrap contra producción (entorno administrativo controlado)
 
 > **Conexión administrativa (obligatorio).** Ejecuta el bootstrap desde un
@@ -47,17 +52,39 @@ Las cuentas `@marketcastilla.demo` **no** cuentan como propietarios reales.
 > Usa `DATABASE_URL` de administración solo en esta sesión de shell y límpiala al
 > terminar (ver `unset` abajo).
 
+**Schema de destino obligatorio.** Antes de ejecutar, exporta el schema:
+
+```bash
+export DB_SEARCH_PATH="salsamentaria"
+```
+
+`DB_SEARCH_PATH` es **obligatorio** para `owner:create` y debe ser **un único
+identificador simple** (patrón `^[a-z_][a-z0-9_]*$`): **no** admite listas
+(`a,b`), **no** hace fallback a `public` y **no** tiene bypass. El propio script:
+
+- **Fija el schema dentro de la transacción** con `SET LOCAL` (`set_config(...,
+  true)`, parametrizado — nunca por concatenación).
+- **Verifica `current_schema()`** y que existan **`users`** y **`audit_events`**
+  en ese schema.
+- **Aborta sin escribir** (ni usuario ni auditoría) si el schema no existe, no
+  coincide, o falta alguna de esas tablas.
+
+Su seguridad **no** depende del listener global del Pool (`pool.on("connect")`),
+ni del `search_path` del rol, ni de variables de Vercel: el `SET LOCAL` + la
+verificación dentro de la transacción son la fuente de verdad.
+
 La contraseña se carga por **entrada oculta** del shell y se limpia al terminar;
 **no** la pongas delante del comando ni la guardes en archivos:
 
 ```bash
+export DB_SEARCH_PATH="salsamentaria"     # obligatorio; un único schema, sin fallback a public
 read -rsp "Contraseña del propietario: " OWNER_PASSWORD
 echo
 export OWNER_PASSWORD
 export OWNER_EMAIL="dueno@sudominio.co"
 export OWNER_FULL_NAME="Nombre real del propietario"
 npm run owner:create
-unset OWNER_PASSWORD OWNER_EMAIL OWNER_FULL_NAME
+unset OWNER_PASSWORD OWNER_EMAIL OWNER_FULL_NAME DB_SEARCH_PATH
 ```
 
 Regla de contraseña: ≥12 caracteres con minúscula, mayúscula, dígito y símbolo;

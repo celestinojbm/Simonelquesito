@@ -30,6 +30,9 @@ const OWNER_BOOTSTRAP_LOCK = 4017421337;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Un ÚNICO identificador de schema PostgreSQL simple (sin listas, comillas, espacios, puntos ni `;`). */
+const SCHEMA_RE = /^[a-z_][a-z0-9_]*$/;
+
 /** Correo del propietario: normalizado, con formato válido y no-demo. */
 export function resolveOwnerEmail(env: Record<string, string | undefined> = process.env): string {
   const email = String(env.OWNER_EMAIL ?? "").trim().toLowerCase();
@@ -90,6 +93,29 @@ export function resolveOwnerInput(env: Record<string, string | undefined> = proc
 }
 
 /**
+ * Schema de destino OBLIGATORIO para el bootstrap (P0). Exige `DB_SEARCH_PATH`
+ * con un ÚNICO identificador simple. NO admite listas (`a,b`), NO hace fallback a
+ * `public`, NO tiene bypass. No lee ni imprime `DATABASE_URL` ni secretos: solo
+ * valida el nombre del schema. La verificación real (que el schema existe y tiene
+ * las tablas) ocurre dentro de la transacción del bootstrap.
+ */
+export function resolveOwnerSchema(env: Record<string, string | undefined> = process.env): string {
+  const raw = env.DB_SEARCH_PATH;
+  if (raw === undefined || raw.trim() === "") {
+    throw new Error(
+      "DB_SEARCH_PATH es obligatorio para owner:create: exporta un único schema, p. ej. DB_SEARCH_PATH=salsamentaria. No hay fallback a public.",
+    );
+  }
+  const schema = raw.trim();
+  if (!SCHEMA_RE.test(schema)) {
+    throw new Error(
+      "DB_SEARCH_PATH inválido: se requiere UN solo identificador PostgreSQL simple con el patrón ^[a-z_][a-z0-9_]*$ (sin listas, comas, comillas, espacios, puntos, punto y coma ni SQL).",
+    );
+  }
+  return schema;
+}
+
+/**
  * Crea el PRIMER propietario real o confirma (no-op) que ya existe, dentro de
  * una transacción con advisory lock. El lock + la re-verificación dentro de la
  * transacción evitan la carrera de que dos ejecuciones concurrentes creen dos
@@ -101,10 +127,36 @@ export function resolveOwnerInput(env: Record<string, string | undefined> = proc
  * capitalización. La creación del usuario y su auditoría son ATÓMICAS (misma
  * transacción): si una falla, se revierte la otra.
  */
-export async function bootstrapOwner(input: OwnerInput): Promise<BootstrapResult> {
+export async function bootstrapOwner(input: OwnerInput, schema: string): Promise<BootstrapResult> {
   return db.transaction(async (tx) => {
     // Serializa el bootstrap: dos ejecuciones concurrentes no crean dos owners.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${OWNER_BOOTSTRAP_LOCK})`);
+
+    // Fija el schema de destino SOLO para esta transacción (SET LOCAL vía
+    // set_config con is_local=true, PARAMETRIZADO — nunca por concatenación). La
+    // seguridad de esta operación administrativa NO depende del listener global
+    // del Pool, ni del search_path del rol/entorno, ni del orden de init del Pool:
+    // la fuente de verdad es este SET LOCAL + la verificación de abajo.
+    await tx.execute(sql`SELECT set_config('search_path', ${schema}, true)`);
+
+    // Verifica DENTRO de la misma transacción que el schema quedó activo y que
+    // contiene las tablas requeridas (to_regclass es seguro y agnóstico al
+    // search_path). Si algo no cuadra, aborta ANTES de cualquier escritura: no se
+    // inserta el usuario ni la auditoría, no se toca ninguna tabla.
+    const check = await tx.execute(sql`
+      SELECT current_schema() AS current_schema,
+             to_regclass(format('%I.%I', ${schema}::text, 'users')) IS NOT NULL AS has_users,
+             to_regclass(format('%I.%I', ${schema}::text, 'audit_events')) IS NOT NULL AS has_audit
+    `);
+    const row = check.rows[0] as
+      | { current_schema: string | null; has_users: boolean; has_audit: boolean }
+      | undefined;
+    if (!row || row.current_schema !== schema || !row.has_users || !row.has_audit) {
+      throw new Error(
+        `El schema de destino '${schema}' no es utilizable para el bootstrap: debe existir y ` +
+          `contener las tablas 'users' y 'audit_events'. No se escribió nada.`,
+      );
+    }
 
     // Coincidencias por identidad case-insensitive (SQL parametrizado, sin concatenar).
     const matches = await tx.select().from(users).where(sql`lower(${users.email}) = ${input.email}`);
@@ -167,7 +219,8 @@ export async function bootstrapOwner(input: OwnerInput): Promise<BootstrapResult
 
 async function main() {
   const input = resolveOwnerInput();
-  const res = await bootstrapOwner(input);
+  const schema = resolveOwnerSchema();
+  const res = await bootstrapOwner(input, schema);
   if (res.status === "created") {
     console.log(`✔ Propietario real creado: ${res.email} (rol: owner, activo).`);
   } else {

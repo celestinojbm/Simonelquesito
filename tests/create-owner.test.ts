@@ -3,7 +3,7 @@
  * auditoría atómica + revocación de sesiones demo. Usa la BD de desarrollo/CI
  * (Postgres local efímero; NUNCA producción). Sin contraseñas reales (fixtures).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq, ilike, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, sessions, users } from "@/db/schema";
@@ -11,13 +11,25 @@ import { id } from "@/lib/ids";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { isDemoEmail } from "@/lib/auth/demo";
 import * as audit from "@/lib/audit";
-import { bootstrapOwner, type BootstrapResult } from "@/db/create-owner";
+import { bootstrapOwner as bootstrapOwnerRaw, type BootstrapResult } from "@/db/create-owner";
 import { revokeDemoSessions } from "@/db/revoke-demo-sessions";
 
 const D = "salsatest.co"; // dominio de prueba (real, no demo)
 const PW1 = "Zt7#qwerbnmk"; // fixture sintética (no es una contraseña real)
 const PW2 = "Kp2$asdfghjk";
 const future = () => new Date(Date.now() + 3600_000);
+
+// El bootstrap ahora exige el schema de destino explícito y lo verifica dentro de
+// la transacción. Se deriva de `current_schema()` en tiempo de ejecución (así estas
+// pruebas son agnósticas a DB_SEARCH_PATH: coincide siempre con donde db:push creó
+// las tablas). La verificación real del guard de schema se cubre en
+// owner-schema-guard.test.ts. Se envuelve para no repetir el schema en cada llamada.
+let SCHEMA = "public";
+beforeAll(async () => {
+  const r = await db.execute(sql`select current_schema() as cs`);
+  SCHEMA = String((r.rows[0] as { cs: string }).cs);
+});
+const bootstrapOwner = (input: Parameters<typeof bootstrapOwnerRaw>[0]) => bootstrapOwnerRaw(input, SCHEMA);
 
 async function cleanupAll() {
   const rows = await db.select({ id: users.id }).from(users).where(ilike(users.email, `%@${D}`));
