@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isStorefrontEnabled } from "@/lib/storefront";
 
 /**
  * Modo "sin storefront" (plantilla replicable): algunos clientes (p. ej. una
  * salsamentaria sin venta pública) solo operan `/admin` y `/repartidor`.
+ * FAIL-CLOSED: el storefront se habilita SOLO con STOREFRONT_ENABLED === "true"
+ * (ver src/lib/storefront.ts); ausente, vacío o cualquier otro valor ⇒ apagado.
  * Es una decisión de INSTANCIA (como BUSINESS_PRESET), no una preferencia que
  * el dueño cambie seguido — por eso es env var de deploy, no `settings`: así
  * el gateo ocurre en el middleware sin depender de una consulta a BD en cada
@@ -22,12 +25,9 @@ const ALWAYS_ALLOWED_PATHS = new Set(["/login", "/privacidad", "/terminos"]);
 const ALWAYS_ALLOWED_PREFIXES = ["/pago-sandbox/", "/pedido/"];
 const STAFF_PREFIXES = ["/admin", "/api", "/repartidor"];
 
-function isStorefrontDisabled(): boolean {
-  return process.env.STOREFRONT_ENABLED === "false";
-}
-
 export function middleware(request: NextRequest) {
-  if (!isStorefrontDisabled()) return NextResponse.next();
+  // Fail-closed: solo se sirve el storefront cuando está EXPLÍCITAMENTE activo.
+  if (isStorefrontEnabled()) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
   const isStaffRoute = STAFF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
