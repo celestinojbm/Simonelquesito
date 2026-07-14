@@ -2,10 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isStorefrontEnabled } from "@/lib/storefront";
 
 /**
- * Modo "sin storefront" (plantilla replicable): algunos clientes (p. ej. una
- * salsamentaria sin venta pública) solo operan `/admin` y `/repartidor`.
- * FAIL-CLOSED: el storefront se habilita SOLO con STOREFRONT_ENABLED === "true"
- * (ver src/lib/storefront.ts); ausente, vacío o cualquier otro valor ⇒ apagado.
+ * Modo "sin storefront" (plantilla replicable): instancias internal-only
+ * (p. ej. una salsamentaria sin venta pública) solo operan el sistema interno.
  * Es una decisión de INSTANCIA (como BUSINESS_PRESET), no una preferencia que
  * el dueño cambie seguido — por eso es env var de deploy, no `settings`: así
  * el gateo ocurre en el middleware sin depender de una consulta a BD en cada
@@ -13,27 +11,52 @@ import { isStorefrontEnabled } from "@/lib/storefront";
  * la plantilla madre, solo se deja de servir. Reactivar venta pública más
  * adelante es cambiar esta variable, no traer código de vuelta.
  *
- * Rutas SIEMPRE permitidas aunque el storefront esté apagado:
- * - /login: única puerta de entrada de TODOS los roles (staff incluido).
- * - /privacidad, /terminos: páginas legales, útiles aunque no haya venta
- *   pública (los datos del cliente se siguen tratando en pedidos internos).
- * - /pago-sandbox, /pedido: no son navegación de storefront — son links
- *   TRANSACCIONALES que el pedido interno le comparte al cliente (link de
- *   pago, seguimiento de SU pedido puntual), no una vitrina para navegar.
+ * FAIL-CLOSED: el storefront se habilita SOLO con STOREFRONT_ENABLED === "true"
+ * (ver src/lib/storefront.ts); ausente, vacío o cualquier otro valor ⇒ apagado.
+ *
+ * Con el storefront APAGADO, la única página pública es /login. Todo lo demás
+ * (portada, catálogo, carrito, checkout, cuenta, /privacidad, /terminos y los
+ * links transaccionales /pedido/**, /pago-sandbox/**, /ubicacion/**) redirige a
+ * /login: esta instancia no comparte enlaces públicos con clientes, y las
+ * páginas legales consumen datos de contacto heredados que no deben exponerse.
+ *
+ * APIs: /api/** NO se bloquea en bloque (el panel, el POS y el repartidor
+ * dependen de APIs autenticadas por sesión, de assets como /api/images y de
+ * webhooks firmados). Solo se bloquean fail-closed las APIs que existen
+ * exclusivamente para la superficie pública del storefront:
+ * - /api/ubicacion/** — mapa del pedido para el cliente; su única página
+ *   consumidora (/ubicacion/**) queda bloqueada en modo interno.
+ * - /api/webhooks/payments/sandbox — lo invoca únicamente la página
+ *   /pago-sandbox/** (bloqueada); además su secreto tiene un fallback de demo
+ *   conocido, así que no debe quedar accesible sin storefront.
+ * Los webhooks REALES (whatsapp, voice, mercadopago) siguen accesibles: son de
+ * proveedores externos y cada uno verifica firma/secreto o responde
+ * 401/403/503 si no está configurado (fail-closed propio).
  */
-const ALWAYS_ALLOWED_PATHS = new Set(["/login", "/privacidad", "/terminos"]);
-const ALWAYS_ALLOWED_PREFIXES = ["/pago-sandbox/", "/pedido/"];
-const STAFF_PREFIXES = ["/admin", "/api", "/repartidor"];
+const INTERNAL_PAGE_PREFIXES = ["/admin", "/repartidor"];
+const INTERNAL_BLOCKED_API_PREFIXES = ["/api/ubicacion", "/api/webhooks/payments/sandbox"];
+
+function matchesPrefix(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
 export function middleware(request: NextRequest) {
   // Fail-closed: solo se sirve el storefront cuando está EXPLÍCITAMENTE activo.
   if (isStorefrontEnabled()) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
-  const isStaffRoute = STAFF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  const isAlwaysAllowed =
-    ALWAYS_ALLOWED_PATHS.has(pathname) || ALWAYS_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (isStaffRoute || isAlwaysAllowed) return NextResponse.next();
+
+  if (pathname === "/login") return NextResponse.next();
+
+  if (pathname === "/api" || pathname.startsWith("/api/")) {
+    if (matchesPrefix(pathname, INTERNAL_BLOCKED_API_PREFIXES)) {
+      // API exclusiva del storefront: en modo interno no existe (fail-closed).
+      return NextResponse.json({ error: "No disponible" }, { status: 404 });
+    }
+    return NextResponse.next();
+  }
+
+  if (matchesPrefix(pathname, INTERNAL_PAGE_PREFIXES)) return NextResponse.next();
 
   return NextResponse.redirect(new URL("/login", request.url));
 }

@@ -1,4 +1,4 @@
-/* Service worker de Market Castilla — MVP.
+/* Service worker de la instancia (plantilla replicable) — MVP.
  * Estrategia: red para navegación (datos frescos de pedidos/stock);
  * stale-while-revalidate para imágenes e íconos (se sirve caché y se
  * actualiza en segundo plano, así los cambios de marca llegan solos);
