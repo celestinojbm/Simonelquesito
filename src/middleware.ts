@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isInternalApiAllowed, isStorefrontEnabled } from "@/lib/storefront";
 
 /**
- * Modo "sin storefront" (plantilla replicable): algunos clientes (p. ej. una
- * salsamentaria sin venta pública) solo operan `/admin` y `/repartidor`.
+ * Modo "sin storefront" (plantilla replicable): instancias internal-only
+ * (p. ej. una salsamentaria sin venta pública) solo operan el sistema interno.
  * Es una decisión de INSTANCIA (como BUSINESS_PRESET), no una preferencia que
  * el dueño cambie seguido — por eso es env var de deploy, no `settings`: así
  * el gateo ocurre en el middleware sin depender de una consulta a BD en cada
@@ -10,30 +11,44 @@ import { NextResponse, type NextRequest } from "next/server";
  * la plantilla madre, solo se deja de servir. Reactivar venta pública más
  * adelante es cambiar esta variable, no traer código de vuelta.
  *
- * Rutas SIEMPRE permitidas aunque el storefront esté apagado:
- * - /login: única puerta de entrada de TODOS los roles (staff incluido).
- * - /privacidad, /terminos: páginas legales, útiles aunque no haya venta
- *   pública (los datos del cliente se siguen tratando en pedidos internos).
- * - /pago-sandbox, /pedido: no son navegación de storefront — son links
- *   TRANSACCIONALES que el pedido interno le comparte al cliente (link de
- *   pago, seguimiento de SU pedido puntual), no una vitrina para navegar.
+ * FAIL-CLOSED: el storefront se habilita SOLO con STOREFRONT_ENABLED === "true"
+ * (ver src/lib/storefront.ts); ausente, vacío o cualquier otro valor ⇒ apagado.
+ *
+ * Con el storefront APAGADO, la única página pública es /login. Todo lo demás
+ * (portada, catálogo, carrito, checkout, cuenta, /privacidad, /terminos y los
+ * links transaccionales /pedido/**, /pago-sandbox/**, /ubicacion/**) redirige a
+ * /login: esta instancia no comparte enlaces públicos con clientes, y las
+ * páginas legales consumen datos de contacto heredados que no deben exponerse.
+ *
+ * APIs: /api/** se gatea por ALLOWLIST fail-closed (ver src/lib/storefront.ts,
+ * fuente única de verdad compartida con la prueba de inventario). Solo pasan
+ * las APIs auditadas: internas autenticadas por sesión, webhooks firmados de
+ * proveedores reales y los assets /api/images/** y /api/section-bg/**.
+ * CUALQUIER otra ruta /api/** — incluida una API nueva aún sin clasificar —
+ * responde 404 en modo interno.
  */
-const ALWAYS_ALLOWED_PATHS = new Set(["/login", "/privacidad", "/terminos"]);
-const ALWAYS_ALLOWED_PREFIXES = ["/pago-sandbox/", "/pedido/"];
-const STAFF_PREFIXES = ["/admin", "/api", "/repartidor"];
+const INTERNAL_PAGE_PREFIXES = ["/admin", "/repartidor"];
 
-function isStorefrontDisabled(): boolean {
-  return process.env.STOREFRONT_ENABLED === "false";
+function matchesPrefix(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export function middleware(request: NextRequest) {
-  if (!isStorefrontDisabled()) return NextResponse.next();
+  // Fail-closed: solo se sirve el storefront cuando está EXPLÍCITAMENTE activo.
+  if (isStorefrontEnabled()) return NextResponse.next();
 
   const { pathname } = request.nextUrl;
-  const isStaffRoute = STAFF_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-  const isAlwaysAllowed =
-    ALWAYS_ALLOWED_PATHS.has(pathname) || ALWAYS_ALLOWED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (isStaffRoute || isAlwaysAllowed) return NextResponse.next();
+
+  if (pathname === "/login") return NextResponse.next();
+
+  if (pathname === "/api" || pathname.startsWith("/api/")) {
+    if (isInternalApiAllowed(pathname)) return NextResponse.next();
+    // Fail-closed: toda API fuera de la allowlist (incluidas las del storefront
+    // y cualquier endpoint nuevo sin clasificar) no existe en modo interno.
+    return NextResponse.json({ error: "No disponible" }, { status: 404 });
+  }
+
+  if (matchesPrefix(pathname, INTERNAL_PAGE_PREFIXES)) return NextResponse.next();
 
   return NextResponse.redirect(new URL("/login", request.url));
 }

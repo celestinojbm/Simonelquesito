@@ -42,7 +42,9 @@ ALTER ROLE <cliente> SET search_path = <cliente>, extensions, public;
 ### 3. Esquema y datos — ~10 min
 ```bash
 DATABASE_URL=postgres://<cliente>:...@.../postgres npm run db:push
-DATABASE_URL=... BUSINESS_PRESET=<preset> npm run db:seed
+# db:seed es un RESET DEMO DESTRUCTIVO (borra todas las tablas). Solo dev/CI/demo;
+# requiere DEMO_MODE=true y NUNCA corre en producción. Para el owner real: owner:create.
+DEMO_MODE=true DATABASE_URL=... BUSINESS_PRESET=<preset> npm run db:seed
 ```
 El seed deja: categorías del preset, reglas de restringidos del rubro,
 settings completos (branding con el tipo de negocio), usuarios demo,

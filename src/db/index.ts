@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
+import { assertLocalDatabaseUrl } from "./assert-local-db";
 
 const globalForDb = globalThis as unknown as { pool?: Pool };
 
@@ -45,6 +46,14 @@ function buildPoolConfig() {
     connectionTimeoutMillis: 10_000,
     ssl: useSsl ? { rejectUnauthorized: false } : undefined,
   };
+}
+
+// Segunda barrera (defensa en profundidad): en NODE_ENV=test, cualquier suite
+// que importe esta capa de BD debe apuntar a una base LOOPBACK explícita. Corre
+// ANTES de crear el Pool; sin bypass. (La primera barrera es el setupFile de
+// Vitest; las pruebas puras no importan este archivo y no se ven afectadas.)
+if (process.env.NODE_ENV === "test") {
+  assertLocalDatabaseUrl(process.env.DATABASE_URL);
 }
 
 const pool = globalForDb.pool ?? new Pool(buildPoolConfig());

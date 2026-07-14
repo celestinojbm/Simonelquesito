@@ -10,8 +10,26 @@ import type { PaymentProvider, CreatePaymentIntent, PaymentIntentResult } from "
  * contra nuestro propio endpoint, igual que haría Wompi/Mercado Pago.
  */
 
+/**
+ * El secreto del webhook sandbox es OBLIGATORIO: sin `PAYMENT_WEBHOOK_SECRET`
+ * (ausente o vacío) la pasarela sandbox queda deshabilitada fail-closed.
+ * NUNCA hay secreto predeterminado — un fallback hardcodeado en un repo
+ * público permitiría a cualquiera firmar webhooks válidos. El mensaje de
+ * error nunca incluye el valor del secreto.
+ */
+export function isSandboxWebhookConfigured(): boolean {
+  const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+  return typeof secret === "string" && secret.trim() !== "";
+}
+
 function webhookSecret(): string {
-  return process.env.PAYMENT_WEBHOOK_SECRET ?? "sandbox-webhook-secret-demo";
+  const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+  if (!secret || secret.trim() === "") {
+    throw new Error(
+      "PAYMENT_WEBHOOK_SECRET no está configurado: la pasarela sandbox está deshabilitada (fail-closed).",
+    );
+  }
+  return secret;
 }
 
 export function signSandboxPayload(rawBody: string): string {
@@ -30,6 +48,8 @@ export class SandboxPaymentProvider implements PaymentProvider {
   }
 
   verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
+    // Fail-closed: sin secreto configurado NINGUNA firma es válida.
+    if (!isSandboxWebhookConfigured()) return false;
     if (!signature) return false;
     const expected = signSandboxPayload(rawBody);
     const a = Buffer.from(signature);

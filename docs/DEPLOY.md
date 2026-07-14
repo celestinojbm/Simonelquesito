@@ -17,12 +17,47 @@ ALTER ROLE salsamentaria SET search_path = salsamentaria, extensions, public;
 -- Extensiones (una vez por proyecto Postgres): pg_trgm y unaccent en schema extensions
 ```
 
-## 2. Esquema y seed
+## 2. Esquema y propietario
+
+Aplica el esquema:
 
 ```bash
 DATABASE_URL=postgres://salsamentaria:...@.../postgres npm run db:push
-DATABASE_URL=... BUSINESS_PRESET=salsamentaria npm run db:seed
 ```
+
+> ⚠️ **NUNCA corras `npm run db:seed` contra producción.** `db:seed` es un
+> **RESET DEMO DESTRUCTIVO**: borra TODAS las tablas y recrea cuentas demo
+> (`*.demo` / `demo1234`). Está bloqueado en producción por diseño (falla antes
+> del primer `DELETE`; requiere `DEMO_MODE=true` y no-producción). Además, **solo
+> acepta bases LOOPBACK** (localhost/127.0.0.1/::1): una `DATABASE_URL` remota se
+> rechaza y **no puede inicializar una instalación remota** (`src/db/assert-local-db.ts`,
+> sin bypass). Es **exclusivamente para desarrollo, CI o entornos demo descartables.**
+> Las credenciales de producción viven en Vercel o en un gestor de secretos; los
+> scripts administrativos (p. ej. `owner:create`) reciben la `DATABASE_URL` de
+> producción de forma temporal desde un entorno controlado, nunca desde `.env.local`.
+
+Ejecuta el **bootstrap del primer propietario real** (no es upsert ni reset de
+contraseña: crea el primer owner o confirma que ya existe sin modificarlo, y
+aborta ante cualquier otro caso). La contraseña se carga por **entrada oculta**
+del shell; no la pongas delante del comando ni en archivos:
+
+```bash
+read -rsp "Contraseña del propietario: " OWNER_PASSWORD; echo
+export OWNER_PASSWORD
+export OWNER_EMAIL="dueno@sudominio.co"
+export OWNER_FULL_NAME="Nombre real del propietario"
+npm run owner:create
+unset OWNER_PASSWORD OWNER_EMAIL OWNER_FULL_NAME
+```
+
+Para desactivar las cuentas demo y revocar sus sesiones, sigue
+[`RUNBOOK_P0_DEMO.md`](./RUNBOOK_P0_DEMO.md).
+
+> **Pendiente (no improvisar en el P0):** todavía NO existe un procedimiento
+> **no destructivo** para inicializar una instalación de producción desde cero
+> (negocio, sucursal, settings, categorías del preset). En esta instancia esos
+> datos ya están en la BD de producción; una instalación futura necesitará un
+> inicializador idempotente separado, distinto de `db:seed`.
 
 Sin catálogo demo (el preset `salsamentaria` no trae productos) — el
 catálogo real entra por CSV o alta manual (ver README).

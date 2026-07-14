@@ -30,16 +30,21 @@ createdb salsamentaria   # o usa un usuario/BD propios
 cp .env.example .env.local   # ajusta DATABASE_URL y SESSION_SECRET
 #    (STOREFRONT_ENABLED=false ya viene por defecto en este repo)
 
-# 3. Instalar, crear esquema, sembrar con el preset salsamentaria y levantar
+# 3. Instalar, crear esquema, sembrar (SOLO local) y levantar
 npm install
 npm run db:push
-BUSINESS_PRESET=salsamentaria npm run db:seed
+# db:seed es un RESET DEMO destructivo (borra y recrea datos/cuentas demo).
+# Requiere DEMO_MODE=true y NUNCA corre en producción.
+DEMO_MODE=true BUSINESS_PRESET=salsamentaria npm run db:seed
 npm run dev                  # http://localhost:3000 → redirige a /login
 ```
 
 ### Cuentas de demostración (contraseña: `demo1234`)
 
-Cámbialas antes de operar con datos reales (ver `docs/PENDING_DATA.md`).
+Solo funcionan en **modo demo** (`DEMO_MODE=true`) fuera de producción: en
+producción no se pueden crear, no autentican (ni con sesión previa) y no
+aparecen en la pantalla de login. El propietario real se crea con
+`npm run owner:create` (ver `docs/DEPLOY.md` y `docs/RUNBOOK_P0_DEMO.md`).
 
 | Rol | Correo | Entra a |
 |---|---|---|
@@ -65,8 +70,16 @@ Cámbialas antes de operar con datos reales (ver `docs/PENDING_DATA.md`).
 
 ### Pruebas
 
+> 🔒 **Seguridad de datos.** `db:seed` y las pruebas solo aceptan bases
+> **loopback** (localhost/127.0.0.1/::1): una `DATABASE_URL` remota se rechaza
+> por diseño (`src/db/assert-local-db.ts`, sin bypass). Usa un Postgres local;
+> nunca la base de producción. Las credenciales de producción viven en Vercel /
+> un gestor de secretos, no en `.env.local`.
+
 ```bash
-npm run db:seed    # SIN BUSINESS_PRESET: los tests requieren el catálogo demo del preset minimarket
+# db:seed = RESET DEMO destructivo (solo local/CI/demo, NUNCA producción).
+# SIN BUSINESS_PRESET: los tests usan el catálogo demo del preset minimarket.
+DEMO_MODE=true npm run db:seed
 npm test           # unitarias + integración (requiere BD sembrada así)
 npm run typecheck
 npm run lint

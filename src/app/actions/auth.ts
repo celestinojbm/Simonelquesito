@@ -7,6 +7,7 @@ import { users } from "@/db/schema";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession, destroySession } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/auth/rate-limit";
+import { isLoginBlocked } from "@/lib/auth/demo";
 
 export type LoginResult = { ok: false; message: string } | never;
 
@@ -21,6 +22,11 @@ export async function loginAction(formData: FormData): Promise<LoginResult> {
     return { ok: false, message: "Demasiados intentos. Espera un minuto." };
   }
   if (!email || !password) return generic;
+
+  // P0: en producción (o sin modo demo) las cuentas demo (*.demo) NO pueden
+  // autenticarse, aunque sigan existiendo en la base. Bloqueo en el backend,
+  // con el mismo mensaje genérico para no revelar la existencia de la cuenta.
+  if (isLoginBlocked(email)) return generic;
 
   const user = await db.query.users.findFirst({ where: eq(users.email, email) });
   if (!user || !user.isActive) return generic;

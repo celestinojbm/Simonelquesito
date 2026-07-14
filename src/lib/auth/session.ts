@@ -6,6 +6,7 @@ import { sessions, users } from "@/db/schema";
 import { id } from "@/lib/ids";
 import type { Role, Permission } from "./permissions";
 import { roleHas } from "./permissions";
+import { isLoginBlocked } from "./demo";
 
 const COOKIE_NAME = "mc_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 días
@@ -60,12 +61,17 @@ export type SessionUser = {
   role: Role;
 };
 
-export async function getSessionUser(): Promise<SessionUser | null> {
-  const store = await cookies();
-  const token = store.get(COOKIE_NAME)?.value;
-  if (!token) return null;
-  const sessionId = unpack(token);
-  if (!sessionId) return null;
+/**
+ * Resuelve el usuario de una sesión por su id (sin leer cookies), aplicando
+ * TODAS las reglas de validez. Punto único usado por páginas y server actions
+ * (vía `getSessionUser`) y por las pruebas de integración.
+ *
+ * P0 — cierre del agujero de sesiones ya emitidas: una cookie de sesión válida
+ * de una cuenta demo NO autentica en producción, aunque no esté vencida, no
+ * esté revocada y el usuario siga activo. Se usa la MISMA fuente de verdad que
+ * `loginAction` (`isLoginBlocked`), sin escribir en la base durante la lectura.
+ */
+export async function resolveSession(sessionId: string): Promise<SessionUser | null> {
   const rows = await db
     .select({
       userId: users.id,
@@ -86,7 +92,19 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .limit(1);
   const row = rows[0];
   if (!row || !row.isActive) return null;
+  // Cuenta demo en producción (o sin modo demo): tratar como no autenticado.
+  // No revela que la cuenta existe (mismo resultado que "sin sesión").
+  if (isLoginBlocked(row.email)) return null;
   return { id: row.userId, email: row.email, fullName: row.fullName, role: row.role as Role };
+}
+
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const store = await cookies();
+  const token = store.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  const sessionId = unpack(token);
+  if (!sessionId) return null;
+  return resolveSession(sessionId);
 }
 
 export async function destroySession(): Promise<void> {

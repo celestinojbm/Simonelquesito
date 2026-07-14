@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # La rama predeterminada real no es `main`. Sin filtro de ramas: CI corre en
+  # cualquier push (incluida la predeterminada tras el merge) y no queda obsoleto
+  # si la rama predeterminada se renombra. La BD de CI es Postgres en localhost
+  # (efímero); nunca usa credenciales ni base de producción.
   push:
-    branches: [main]
   pull_request:
 
 jobs:
@@ -29,6 +32,9 @@ jobs:
       PAYMENT_WEBHOOK_SECRET: ci-webhook-secret
       MESSAGING_PROVIDER: console
       STOREFRONT_ENABLED: "false"
+      # CI es un entorno de PRUEBA autorizado: habilita el seed y las cuentas
+      # demo explícitamente (nunca se activa en producción — ver src/lib/auth/demo.ts).
+      DEMO_MODE: "true"
 
     steps:
       - uses: actions/checkout@v4
