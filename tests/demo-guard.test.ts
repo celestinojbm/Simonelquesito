@@ -106,7 +106,7 @@ describe("isDemoEmail (dominio EXACTO @marketcastilla.demo)", () => {
     expect(isDemoEmail("termina-en-arroba@")).toBe(false);
   });
   it("no marca correos reales", () => {
-    expect(isDemoEmail("celestinojbm@gmail.com")).toBe(false);
+    expect(isDemoEmail("owner.test@example.invalid")).toBe(false);
     expect(isDemoEmail("dueno@simonelquesito.co")).toBe(false);
   });
 });
@@ -120,7 +120,7 @@ describe("isLoginBlocked (bloqueo backend)", () => {
   it("NO bloquea al propietario real en producción", () => {
     setEnv({ NODE_ENV: "production" });
     expect(isLoginBlocked("dueno@simonelquesito.co")).toBe(false);
-    expect(isLoginBlocked("celestinojbm@gmail.com")).toBe(false);
+    expect(isLoginBlocked("owner.test@example.invalid")).toBe(false);
   });
   it("BLOQUEA cuentas demo en desarrollo si el modo demo NO está activo", () => {
     setEnv({ NODE_ENV: "development" });
