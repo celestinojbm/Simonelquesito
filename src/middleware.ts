@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isStorefrontEnabled } from "@/lib/storefront";
+import { isInternalApiAllowed, isStorefrontEnabled } from "@/lib/storefront";
 
 /**
  * Modo "sin storefront" (plantilla replicable): instancias internal-only
@@ -20,21 +20,14 @@ import { isStorefrontEnabled } from "@/lib/storefront";
  * /login: esta instancia no comparte enlaces públicos con clientes, y las
  * páginas legales consumen datos de contacto heredados que no deben exponerse.
  *
- * APIs: /api/** NO se bloquea en bloque (el panel, el POS y el repartidor
- * dependen de APIs autenticadas por sesión, de assets como /api/images y de
- * webhooks firmados). Solo se bloquean fail-closed las APIs que existen
- * exclusivamente para la superficie pública del storefront:
- * - /api/ubicacion/** — mapa del pedido para el cliente; su única página
- *   consumidora (/ubicacion/**) queda bloqueada en modo interno.
- * - /api/webhooks/payments/sandbox — lo invoca únicamente la página
- *   /pago-sandbox/** (bloqueada); además su secreto tiene un fallback de demo
- *   conocido, así que no debe quedar accesible sin storefront.
- * Los webhooks REALES (whatsapp, voice, mercadopago) siguen accesibles: son de
- * proveedores externos y cada uno verifica firma/secreto o responde
- * 401/403/503 si no está configurado (fail-closed propio).
+ * APIs: /api/** se gatea por ALLOWLIST fail-closed (ver src/lib/storefront.ts,
+ * fuente única de verdad compartida con la prueba de inventario). Solo pasan
+ * las APIs auditadas: internas autenticadas por sesión, webhooks firmados de
+ * proveedores reales y los assets /api/images/** y /api/section-bg/**.
+ * CUALQUIER otra ruta /api/** — incluida una API nueva aún sin clasificar —
+ * responde 404 en modo interno.
  */
 const INTERNAL_PAGE_PREFIXES = ["/admin", "/repartidor"];
-const INTERNAL_BLOCKED_API_PREFIXES = ["/api/ubicacion", "/api/webhooks/payments/sandbox"];
 
 function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -49,11 +42,10 @@ export function middleware(request: NextRequest) {
   if (pathname === "/login") return NextResponse.next();
 
   if (pathname === "/api" || pathname.startsWith("/api/")) {
-    if (matchesPrefix(pathname, INTERNAL_BLOCKED_API_PREFIXES)) {
-      // API exclusiva del storefront: en modo interno no existe (fail-closed).
-      return NextResponse.json({ error: "No disponible" }, { status: 404 });
-    }
-    return NextResponse.next();
+    if (isInternalApiAllowed(pathname)) return NextResponse.next();
+    // Fail-closed: toda API fuera de la allowlist (incluidas las del storefront
+    // y cualquier endpoint nuevo sin clasificar) no existe en modo interno.
+    return NextResponse.json({ error: "No disponible" }, { status: 404 });
   }
 
   if (matchesPrefix(pathname, INTERNAL_PAGE_PREFIXES)) return NextResponse.next();

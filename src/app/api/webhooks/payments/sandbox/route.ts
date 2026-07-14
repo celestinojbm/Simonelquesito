@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
-import { SandboxPaymentProvider } from "@/modules/payments/sandbox";
+import { isSandboxWebhookConfigured, SandboxPaymentProvider } from "@/modules/payments/sandbox";
 import { processPaymentWebhook } from "@/modules/payments/service";
 
 /**
  * Webhook de la pasarela sandbox.
  * Igual que un webhook real: firma HMAC verificada sobre el cuerpo crudo,
  * dedupe por event_id, y confirmación SOLO del lado del servidor.
+ * Sin PAYMENT_WEBHOOK_SECRET configurado responde 503 (apagado, fail-closed)
+ * ANTES de leer el cuerpo o tocar pagos/pedidos — no existe secreto por defecto.
  */
 export async function POST(request: Request) {
+  if (!isSandboxWebhookConfigured()) {
+    return NextResponse.json({ error: "La pasarela sandbox no está configurada" }, { status: 503 });
+  }
+
   const provider = new SandboxPaymentProvider();
   const rawBody = await request.text();
   const signature = request.headers.get("x-sandbox-signature");
