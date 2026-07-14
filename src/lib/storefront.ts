@@ -14,50 +14,61 @@ export function isStorefrontEnabled(env: Record<string, string | undefined> = pr
 }
 
 /**
- * Política de APIs en modo interno — ALLOWLIST fail-closed.
+ * Política de APIs en modo interno — ALLOWLIST fail-closed por PATRONES REALES.
  *
- * Fuente única de verdad: la consume el middleware (gateo real) y la prueba de
- * inventario (tests/api-inventory-guard.test.ts), que falla si aparece un
- * `src/app/api/x/route.ts` nuevo sin clasificar aquí. Una API que no esté en
- * la allowlist responde 404 en modo interno — incluida cualquier API futura,
- * hasta que se audite y clasifique explícitamente.
+ * FUENTE ÚNICA DE VERDAD: cada patrón corresponde 1:1 a un
+ * `src/app/api/**\/route.ts` existente y aparece UNA sola vez con su
+ * clasificación. La consumen el middleware (gateo real) y la prueba de
+ * inventario (tests/api-inventory-guard.test.ts), que exige igualdad exacta
+ * entre los endpoints del repo y estas claves: un route.ts nuevo —incluso
+ * anidado bajo /api/images/**— rompe la suite hasta clasificarse aquí, y una
+ * clasificación sin ruta real también. No hay prefijos amplios ni catch-all
+ * implícito: un patrón `[...slug]` requiere soporte explícito (hoy no existe
+ * y la guardia lo rechaza).
  */
-
-/** APIs permitidas en modo interno por coincidencia EXACTA de ruta. */
-export const INTERNAL_ALLOWED_API_EXACT: readonly string[] = [
+export const INTERNAL_API_POLICY: Readonly<Record<string, "allowed" | "blocked">> = {
   // Internas autenticadas (sesión + rol/permiso dentro del handler):
-  "/api/admin/pedidos-nuevos",
-  "/api/driver/location",
-  "/api/integrations/mercadopago/callback",
+  "/api/admin/pedidos-nuevos": "allowed",
+  "/api/driver/location": "allowed",
+  "/api/integrations/mercadopago/callback": "allowed",
   // Webhooks firmados de proveedores reales (verifican firma o responden 401/403/503):
-  "/api/webhooks/whatsapp",
-  "/api/webhooks/voice",
-  "/api/webhooks/payments/mercadopago",
-];
+  "/api/webhooks/whatsapp": "allowed",
+  "/api/webhooks/voice": "allowed",
+  "/api/webhooks/payments/mercadopago": "allowed",
+  // Assets necesarios para el panel/POS (solo imágenes, sin PII ni contacto):
+  "/api/images/[id]": "allowed",
+  "/api/section-bg/[key]": "allowed",
+  // Storefront: bloqueadas en modo interno.
+  // Mapa del pedido para el cliente — su única consumidora (/ubicacion/**) está bloqueada:
+  "/api/ubicacion/[token]": "blocked",
+  // Solo lo invoca la página /pago-sandbox/** (bloqueada en modo interno):
+  "/api/webhooks/payments/sandbox": "blocked",
+};
+
+/** Segmento dinámico SIMPLE de Next: `[id]`, `[key]`, `[token]`… (NO catch-all). */
+const SIMPLE_DYNAMIC_SEGMENT = /^\[[^\][.]+\]$/;
 
 /**
- * APIs de assets permitidas por PREFIJO con límite de segmento: se exige el
- * `/` separador (`/api/images/abc` pasa; `/api/imagesmaliciosa` no; el prefijo
- * pelado `/api/images` tampoco — no existe como ruta).
+ * Matcher determinista de patrones de ruta:
+ * - un segmento estático coincide solo consigo mismo;
+ * - `[param]` coincide con EXACTAMENTE un segmento no vacío;
+ * - misma cantidad de segmentos (ni de más ni de menos);
+ * - un catch-all (`[...slug]`) NUNCA coincide: requeriría soporte explícito.
  */
-export const INTERNAL_ALLOWED_API_PREFIXES: readonly string[] = ["/api/images", "/api/section-bg"];
-
-/**
- * APIs del storefront conocidas y BLOQUEADAS en modo interno (patrones de ruta
- * tal como existen en `src/app/api/**`). No las usa el middleware — allí bloquea
- * la ausencia de allowlist —; documentan la clasificación para la prueba de
- * inventario: todo endpoint del repo debe estar en la allowlist o aquí.
- */
-export const INTERNAL_BLOCKED_API_ROUTES: readonly string[] = [
-  // Mapa del pedido para el cliente: su única página consumidora (/ubicacion/**)
-  // queda bloqueada en modo interno.
-  "/api/ubicacion/[token]",
-  // Solo lo invoca la página /pago-sandbox/** (bloqueada en modo interno).
-  "/api/webhooks/payments/sandbox",
-];
+export function matchesApiPattern(pathname: string, pattern: string): boolean {
+  const pathSegments = pathname.split("/");
+  const patternSegments = pattern.split("/");
+  if (pathSegments.length !== patternSegments.length) return false;
+  return patternSegments.every((pat, i) => {
+    if (SIMPLE_DYNAMIC_SEGMENT.test(pat)) return pathSegments[i] !== "";
+    if (pat.startsWith("[")) return false; // catch-all/optional: sin soporte ⇒ fail-closed
+    return pathSegments[i] === pat;
+  });
+}
 
 /** ¿La ruta de API está permitida en modo interno? (fail-closed: default NO). */
 export function isInternalApiAllowed(pathname: string): boolean {
-  if (INTERNAL_ALLOWED_API_EXACT.includes(pathname)) return true;
-  return INTERNAL_ALLOWED_API_PREFIXES.some((p) => pathname.startsWith(`${p}/`));
+  return Object.entries(INTERNAL_API_POLICY).some(
+    ([pattern, verdict]) => verdict === "allowed" && matchesApiPattern(pathname, pattern),
+  );
 }

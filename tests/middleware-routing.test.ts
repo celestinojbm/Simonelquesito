@@ -62,6 +62,12 @@ const BLOCKED_APIS = [
   // Fail-closed real: rutas desconocidas o futuras NO pasan sin clasificarse.
   "/api",
   "/api/desconocida",
+  // Patrones dinámicos estrictos: ni faltan ni sobran segmentos.
+  "/api/images",
+  "/api/images/abc/extra",
+  "/api/images/private/export",
+  "/api/section-bg",
+  "/api/section-bg/page/extra",
   // Límite de segmento: un prefijo "parecido" no se cuela.
   "/api/imagesmaliciosa",
   "/api/admin/pedidos-nuevos-extra",

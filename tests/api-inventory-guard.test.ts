@@ -1,23 +1,26 @@
 /**
- * Guardia de INVENTARIO de APIs (modo interno, allowlist fail-closed).
+ * Guardia de INVENTARIO de APIs (modo interno) — ESTRICTA, por patrones reales.
  *
- * Descubre todos los `src/app/api/**\/route.ts` del repo y exige que cada
- * endpoint esté clasificado EXPLÍCITAMENTE en la fuente única de verdad
- * (src/lib/storefront.ts): o pasa la allowlist (`isInternalApiAllowed`) o
- * figura en `INTERNAL_BLOCKED_API_ROUTES`. Si mañana aparece un route.ts
- * nuevo sin clasificar, esta prueba FALLA — el middleware ya lo bloquea con
- * 404 (fail-closed), y aquí se obliga a auditarlo y clasificarlo.
- * También detecta clasificaciones obsoletas (entradas sin ruta real).
+ * Descubre todos los `src/app/api/**\/route.ts` del repo y exige IGUALDAD
+ * EXACTA con las claves de INTERNAL_API_POLICY (src/lib/storefront.ts, la
+ * misma fuente que consume el middleware):
+ *  - cada patrón descubierto aparece exactamente una vez en la política
+ *    (un route.ts nuevo — incluso anidado bajo /api/images/** — rompe la
+ *    suite hasta ser auditado y clasificado);
+ *  - cada entrada de la política corresponde a un route.ts real (una ruta
+ *    eliminada deja una clasificación obsoleta y rompe la suite);
+ *  - ninguna ruta queda permitida y bloqueada a la vez (estructural: la
+ *    política es un Record patrón → clasificación única);
+ *  - los patrones catch-all ([...slug]) no tienen soporte: aparecer uno exige
+ *    soporte explícito, mientras tanto la validación falla;
+ *  - coherencia matcher↔política: la muestra concreta de cada patrón allowed
+ *    pasa isInternalApiAllowed y la de cada blocked no.
+ * Sin snapshots.
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import {
-  INTERNAL_ALLOWED_API_EXACT,
-  INTERNAL_ALLOWED_API_PREFIXES,
-  INTERNAL_BLOCKED_API_ROUTES,
-  isInternalApiAllowed,
-} from "@/lib/storefront";
+import { INTERNAL_API_POLICY, isInternalApiAllowed, matchesApiPattern } from "@/lib/storefront";
 
 const API_ROOT = path.join(process.cwd(), "src/app/api");
 
@@ -34,48 +37,71 @@ function discoverApiRoutes(dir: string = API_ROOT, urlPath = "/api"): string[] {
   return routes.sort();
 }
 
-/** Ruta concreta de muestra: cada segmento dinámico [param] se vuelve "x". */
+/** Ruta concreta de muestra: cada segmento dinámico simple [param] se vuelve "x". */
 function samplePath(routePattern: string): string {
   return routePattern.replace(/\[[^\]]+\]/g, "x");
 }
 
-describe("inventario de APIs — todo endpoint clasificado (fail-closed)", () => {
-  const discovered = discoverApiRoutes();
+const discovered = discoverApiRoutes();
+const policyPatterns = Object.keys(INTERNAL_API_POLICY).sort();
 
+describe("inventario de APIs — igualdad exacta repo ↔ política", () => {
   it("existe al menos un endpoint (sanidad del descubrimiento)", () => {
     expect(discovered.length).toBeGreaterThan(0);
   });
 
-  it.each(discovered)("%s está clasificado: allowlist o bloqueado explícito", (route) => {
-    const allowed = isInternalApiAllowed(samplePath(route));
-    const blocked = INTERNAL_BLOCKED_API_ROUTES.includes(route);
+  it.each(discovered)("%s está clasificado explícitamente en INTERNAL_API_POLICY", (route) => {
     expect(
-      allowed || blocked,
-      `Endpoint NUEVO sin clasificar: ${route}. Audítalo y añádelo a la allowlist ` +
-        `(INTERNAL_ALLOWED_API_EXACT / INTERNAL_ALLOWED_API_PREFIXES) o a ` +
-        `INTERNAL_BLOCKED_API_ROUTES en src/lib/storefront.ts. Mientras tanto el ` +
-        `middleware lo bloquea con 404 en modo interno.`,
+      policyPatterns.includes(route),
+      `Endpoint NUEVO sin clasificar: ${route}. Audítalo y añádelo a INTERNAL_API_POLICY ` +
+        `(src/lib/storefront.ts) como "allowed" o "blocked". Mientras tanto el middleware ` +
+        `lo bloquea con 404 en modo interno (ningún patrón lo permite).`,
     ).toBe(true);
-    // Nada puede estar en ambas listas a la vez (clasificación ambigua).
-    expect(allowed && blocked, `${route} está permitido Y bloqueado a la vez`).toBe(false);
   });
 
-  it("cada entrada EXACTA de la allowlist corresponde a una ruta real", () => {
-    for (const entry of INTERNAL_ALLOWED_API_EXACT) {
-      expect(discovered.includes(entry), `allowlist obsoleta: ${entry} no existe en src/app/api`).toBe(true);
-    }
+  it.each(policyPatterns)("%s (política) corresponde a un route.ts real", (pattern) => {
+    expect(
+      discovered.includes(pattern),
+      `Clasificación OBSOLETA: ${pattern} no existe en src/app/api — elimínala de INTERNAL_API_POLICY.`,
+    ).toBe(true);
   });
 
-  it("cada PREFIJO de la allowlist tiene al menos una ruta real debajo", () => {
-    for (const prefix of INTERNAL_ALLOWED_API_PREFIXES) {
-      const hits = discovered.filter((r) => r.startsWith(`${prefix}/`));
-      expect(hits.length, `prefijo obsoleto en la allowlist: ${prefix}`).toBeGreaterThan(0);
-    }
+  it("igualdad exacta de conjuntos (sin extras en ningún lado)", () => {
+    expect(discovered).toEqual(policyPatterns);
   });
 
-  it("cada ruta BLOQUEADA declarada corresponde a una ruta real", () => {
-    for (const entry of INTERNAL_BLOCKED_API_ROUTES) {
-      expect(discovered.includes(entry), `bloqueo obsoleto: ${entry} no existe en src/app/api`).toBe(true);
+  it("los patrones catch-all no tienen soporte: requieren trabajo explícito", () => {
+    for (const pattern of [...policyPatterns, ...discovered]) {
+      for (const seg of pattern.split("/")) {
+        expect(
+          seg.includes("..."),
+          `Patrón catch-all sin soporte: ${pattern}. El matcher no lo cubre (fail-closed); ` +
+            `añadir soporte explícito y sus pruebas antes de usarlo.`,
+        ).toBe(false);
+      }
     }
+  });
+});
+
+describe("coherencia matcher ↔ política", () => {
+  it.each(policyPatterns)("la muestra de %s respeta su clasificación", (pattern) => {
+    const sample = samplePath(pattern);
+    expect(matchesApiPattern(sample, pattern), `la muestra ${sample} debe casar con su patrón`).toBe(true);
+    const allowed = isInternalApiAllowed(sample);
+    expect(allowed, `muestra ${sample}`).toBe(INTERNAL_API_POLICY[pattern] === "allowed");
+  });
+
+  it("los dinámicos exigen exactamente UN segmento no vacío", () => {
+    expect(matchesApiPattern("/api/images/abc", "/api/images/[id]")).toBe(true);
+    expect(matchesApiPattern("/api/images", "/api/images/[id]")).toBe(false); // falta segmento
+    expect(matchesApiPattern("/api/images/abc/extra", "/api/images/[id]")).toBe(false); // sobra
+    expect(matchesApiPattern("/api/images/", "/api/images/[id]")).toBe(false); // vacío
+    expect(matchesApiPattern("/api/imagesmaliciosa", "/api/images/[id]")).toBe(false);
+  });
+
+  it("los estáticos son exactos (sin sufijos ni catch-all implícito)", () => {
+    expect(matchesApiPattern("/api/admin/pedidos-nuevos", "/api/admin/pedidos-nuevos")).toBe(true);
+    expect(matchesApiPattern("/api/admin/pedidos-nuevos-extra", "/api/admin/pedidos-nuevos")).toBe(false);
+    expect(matchesApiPattern("/api/admin/pedidos-nuevos/extra", "/api/admin/pedidos-nuevos")).toBe(false);
   });
 });
