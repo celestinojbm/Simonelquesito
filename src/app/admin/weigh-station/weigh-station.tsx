@@ -66,7 +66,6 @@ export function WeighStation({
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [item, setItem] = useState<StationItem | null>(null);
-  const [showCamera, setShowCamera] = useState(false);
   const scanRef = useRef<HTMLInputElement>(null);
 
   // Movimiento
@@ -252,38 +251,27 @@ export function WeighStation({
         <div className="space-y-3">
           <div>
             <label htmlFor="ws-scan" className="mb-1 block text-xs font-bold uppercase text-ink-soft">Escanea o escribe el código</label>
-            <div className="flex gap-2">
-              <input
-                id="ws-scan"
-                ref={scanRef}
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    resolveCode(code);
-                    setCode("");
-                  }
-                }}
-                placeholder="Código de barras o SKU · Enter"
-                className={inputCls}
-                autoComplete="off"
-                inputMode="text"
-              />
-              <button type="button" onClick={() => setShowCamera((s) => !s)} className="btn shrink-0 rounded-lg border border-brand-soft px-3 py-2 text-xs font-semibold text-ink-soft">
-                📷 Cámara
-              </button>
-            </div>
+            <input
+              id="ws-scan"
+              ref={scanRef}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  resolveCode(code);
+                  setCode("");
+                }
+              }}
+              placeholder="Código de barras o SKU · Enter"
+              className={inputCls}
+              autoComplete="off"
+              inputMode="text"
+            />
           </div>
 
-          {showCamera && (
-            <BarcodeScanner
-              onDetected={(c) => {
-                setShowCamera(false);
-                resolveCode(c);
-              }}
-            />
-          )}
+          {/* Cámara de respaldo: su propio botón abre/cierra con un solo clic. */}
+          <BarcodeScanner onDetected={(c) => resolveCode(c)} />
 
           <div>
             <div className="flex gap-2">
