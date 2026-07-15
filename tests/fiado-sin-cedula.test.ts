@@ -16,6 +16,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { customers } from "@/db/schema";
 import { getCreditStatus } from "@/modules/credit/service";
+import { canSubmitEnroll, isEnrollPhoneValid } from "@/app/admin/fiado/enroll-validation";
 
 // revalidatePath necesita el contexto de request de Next (inexistente en un
 // test node): lo neutralizamos para probar la lógica de la acción.
@@ -117,5 +118,31 @@ describe("UI del formulario de Fiado (guarda de fuente)", () => {
     expect(src).toContain('placeholder="Nombre completo"');
     expect(src).toContain('placeholder="Celular"');
     expect(src).toContain('placeholder="Monto a fiar"');
+  });
+
+  it("el botón usa la validación compartida del teléfono (no solo 'no vacío')", () => {
+    expect(src).toContain("canSubmitEnroll");
+  });
+});
+
+describe("validación cliente del teléfono en el registro de fiado", () => {
+  it("menos de 7 dígitos NO valida (coherente con el mínimo del servidor)", () => {
+    expect(isEnrollPhoneValid("")).toBe(false);
+    expect(isEnrollPhoneValid("123456")).toBe(false); // 6 dígitos
+    expect(isEnrollPhoneValid("30-01-2")).toBe(false); // 5 dígitos aunque 7 caracteres
+  });
+
+  it("7 o más dígitos SÍ valida", () => {
+    expect(isEnrollPhoneValid("1234567")).toBe(true); // 7 dígitos
+    expect(isEnrollPhoneValid("300 123 4567")).toBe(true); // 10 dígitos (se ignoran espacios)
+  });
+
+  it("canSubmitEnroll: un teléfono corto no habilita el registro; uno válido sí", () => {
+    const base = { fullName: "Ana Pérez", amountCop: 10_000 };
+    expect(canSubmitEnroll({ ...base, phone: "12345" })).toBe(false); // teléfono corto
+    expect(canSubmitEnroll({ ...base, phone: "3001234567" })).toBe(true);
+    // Y sigue exigiendo nombre (≥2 tras trim) y monto (>0):
+    expect(canSubmitEnroll({ fullName: " A ", phone: "3001234567", amountCop: 10_000 })).toBe(false);
+    expect(canSubmitEnroll({ fullName: "Ana", phone: "3001234567", amountCop: 0 })).toBe(false);
   });
 });

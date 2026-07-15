@@ -247,8 +247,9 @@ export async function chargeMembershipFeeToCredit(params: {
 
 /**
  * Alta de la cuenta de crédito.
- * - in_store: exige aval del personal y cédula registrada en la ficha.
- * - online: exige membresía activa + minPaidOrdersOnline pedidos entregados.
+ * - in_store: alta realizada por personal autorizado; no exige cédula.
+ * - online: aplica las verificaciones configuradas de teléfono, correo,
+ *   identidad y pedidos entregados.
  */
 export async function openCreditAccount(params: {
   customerId: string;

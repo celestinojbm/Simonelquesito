@@ -12,6 +12,7 @@ import {
   enrollInStoreAction,
   restoreCreditAccountAction,
 } from "@/app/actions/fiado";
+import { canSubmitEnroll } from "./enroll-validation";
 
 type AccountRow = {
   customerId: string;
@@ -101,9 +102,7 @@ export function FiadoConsole({
           type="button"
           disabled={
             pending ||
-            enroll.fullName.trim().length < 2 ||
-            !enroll.phone ||
-            Number(enroll.amountCop) <= 0
+            !canSubmitEnroll({ fullName: enroll.fullName, phone: enroll.phone, amountCop: Number(enroll.amountCop) })
           }
           onClick={() =>
             run(
