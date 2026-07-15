@@ -123,6 +123,12 @@ export async function consumeByFefo(
     createdBy: string;
   },
 ): Promise<void> {
+  // Lock pesimista de la variante ANTES de leer las cantidades de los lotes:
+  // serializa a TODOS los consumidores de FEFO (ventas y estación de balanza),
+  // evitando actualizaciones perdidas de `qtyRemaining` por lecturas obsoletas.
+  // No cambia el orden FEFO. Re-lockear la misma fila dentro de la transacción
+  // del llamador es inocuo.
+  await tx.execute(sql`SELECT id FROM product_variants WHERE id = ${params.variantId} FOR UPDATE`);
   let remaining = params.qty;
   const lots = await tx.query.inventoryLots.findMany({
     where: and(eq(inventoryLots.variantId, params.variantId), sql`${inventoryLots.qtyRemaining} > 0`),
