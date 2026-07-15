@@ -10,11 +10,15 @@
 import type { ScaleAdapter, ScaleReading, ScaleStatus } from "./types";
 import { finalizeGrams } from "./weight";
 
-/** ¿El simulador está habilitado? (opt-in explícito por variable no secreta). */
+/**
+ * ¿El simulador está habilitado? Opt-in EXPLÍCITO por variable no secreta y
+ * NUNCA en producción. Sirve tanto para la UI (mostrar/ocultar) como para el
+ * guard del servidor (rechazar `source: "simulated"` no autorizado).
+ */
 export function isSimulatedScaleEnabled(
   env: Record<string, string | undefined> = process.env,
 ): boolean {
-  return env.NEXT_PUBLIC_SCALE_SIMULATOR === "true";
+  return env.NEXT_PUBLIC_SCALE_SIMULATOR === "true" && env.NODE_ENV !== "production";
 }
 
 /** Secuencia determinista de pesos de muestra (gramos), para no usar aleatoriedad. */

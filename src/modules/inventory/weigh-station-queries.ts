@@ -3,17 +3,19 @@
  * (barcode/SKU exacto → nombre), y el historial de "últimos movimientos de
  * balanza". Reutiliza `getStock` (fuente de verdad del stock) y `normalizeSearch`.
  */
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   categories,
-  inventoryMovements,
   productVariants,
   products,
 } from "@/db/schema";
 import { normalizeSearch } from "@/lib/search";
 import { scaleSourceLabel } from "@/modules/devices/scale/types";
 import { getStock } from "./service";
+import { STATION_REASONS } from "./station-reasons";
+import { sanitizeActorLabel } from "./station-format";
 
 export type StationItem = {
   variantId: string;
@@ -117,45 +119,56 @@ export type StationHistoryRow = {
   productName: string;
   variantName: string;
   saleUnit: string;
+  /** Cantidad total con signo de la OPERACIÓN (+entrada / −salida). */
   qty: number;
   type: string;
   sourceLabel: string;
   reason: string | null;
-  createdBy: string | null;
+  /** Etiqueta SANITIZADA del operador (rol; nunca el correo). */
+  operator: string;
 };
 
-/** Últimos movimientos de la estación (reference_type LIKE 'weigh_station_%'). */
+/**
+ * Últimos movimientos de la estación — UNA fila por OPERACIÓN. Se construye desde
+ * los eventos de auditoría `inventory.station_movement` (existe exactamente uno
+ * por operación y ya contiene dirección, cantidad total, fuente, motivo y
+ * stock), de modo que una salida FEFO con varios fragmentos de ledger aparece
+ * como una sola operación. El operador se muestra sanitizado (sin correo).
+ */
 export async function listRecentStationMovements(limit = 10): Promise<StationHistoryRow[]> {
   const rows = await db
     .select({
-      id: inventoryMovements.id,
-      createdAt: inventoryMovements.createdAt,
+      id: auditEvents.id,
+      createdAt: auditEvents.createdAt,
       productName: products.name,
       variantName: productVariants.name,
       saleUnit: productVariants.saleUnit,
-      qty: inventoryMovements.qty,
-      type: inventoryMovements.type,
-      referenceType: inventoryMovements.referenceType,
-      reason: inventoryMovements.reason,
-      createdBy: inventoryMovements.createdBy,
+      after: auditEvents.after,
+      actorLabel: auditEvents.actorLabel,
     })
-    .from(inventoryMovements)
-    .innerJoin(productVariants, eq(inventoryMovements.variantId, productVariants.id))
+    .from(auditEvents)
+    .innerJoin(productVariants, eq(auditEvents.entityId, productVariants.id))
     .innerJoin(products, eq(productVariants.productId, products.id))
-    .where(like(inventoryMovements.referenceType, "weigh_station_%"))
-    .orderBy(desc(inventoryMovements.createdAt))
+    .where(eq(auditEvents.action, "inventory.station_movement"))
+    .orderBy(desc(auditEvents.createdAt))
     .limit(limit);
 
-  return rows.map((r) => ({
-    id: r.id,
-    createdAt: r.createdAt.toISOString(),
-    productName: r.productName,
-    variantName: r.variantName,
-    saleUnit: r.saleUnit,
-    qty: r.qty,
-    type: r.type,
-    sourceLabel: scaleSourceLabel((r.referenceType ?? "").replace(/^weigh_station_/, "")),
-    reason: r.reason,
-    createdBy: r.createdBy,
-  }));
+  return rows.map((r) => {
+    const after = (r.after ?? {}) as Record<string, unknown>;
+    const direction = String(after.direction ?? "in");
+    const reasonCode = String(after.reasonCode ?? "");
+    const qtyMinor = Number(after.quantityMinor ?? 0);
+    return {
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      productName: r.productName,
+      variantName: r.variantName,
+      saleUnit: r.saleUnit,
+      qty: direction === "in" ? qtyMinor : -qtyMinor,
+      type: String(after.type ?? ""),
+      sourceLabel: scaleSourceLabel(String(after.source ?? "manual")),
+      reason: STATION_REASONS[reasonCode]?.label ?? null,
+      operator: sanitizeActorLabel(r.actorLabel),
+    };
+  });
 }

@@ -6,19 +6,24 @@
  * esquema.
  *
  * Garantías:
- *  - Idempotencia por `(reference_type, reference_id)`: `reference_type` codifica
- *    la fuente/estación (`weigh_station_<source>`) y `reference_id` es la clave de
- *    idempotencia del cliente. Un advisory lock transaccional serializa reintentos
- *    concurrentes; un reintento con la misma clave NO crea otro movimiento, ni
- *    duplica lote ni auditoría — devuelve el resultado previo.
- *  - Salida nunca deja stock negativo (valida disponible antes; lock pesimista de
- *    la variante) y consume lotes por FEFO cuando corresponde.
+ *  - Fuentes operativas en este PR (#3A): SOLO `manual` y `simulated` (este
+ *    último únicamente cuando el entorno lo habilita explícitamente). Las fuentes
+ *    USB (`web_serial`/`web_usb`/`local_bridge`) quedan preparadas en el tipo pero
+ *    el servicio las RECHAZA hasta la certificación física (PR #3B).
+ *  - Idempotencia por `reference_id` (la clave del cliente) con advisory lock
+ *    transaccional. Un reintento con la MISMA clave y los MISMOS datos devuelve
+ *    el resultado ORIGINAL (no reconstruido con el input nuevo). Si la clave se
+ *    reutiliza con datos distintos, se RECHAZA (detección de conflicto por
+ *    fingerprint SHA-256 guardado en la auditoría).
+ *  - Salida nunca deja stock negativo (valida disponible + lock pesimista de la
+ *    variante) y consume lotes por FEFO cuando corresponde.
  *  - Entrada con lote/vencimiento crea lote + movimiento en la MISMA transacción.
- *  - Proveedor y número de piezas (sin columna propia) se guardan en la auditoría.
+ *  - Proveedor (referencia libre) y número de piezas se guardan en la auditoría.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, eq, like, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { inventoryLots, inventoryMovements, productVariants, products } from "@/db/schema";
+import { auditEvents, inventoryLots, inventoryMovements, productVariants, products } from "@/db/schema";
 import { id } from "@/lib/ids";
 import { recordAudit } from "@/lib/audit";
 import {
@@ -27,7 +32,8 @@ import {
   getStock,
   InsufficientStockError,
 } from "./service";
-import { STATION_REASONS, type ReasonMeta, type StationMovementType } from "./station-reasons";
+import { STATION_REASONS, type ReasonMeta } from "./station-reasons";
+import { isSimulatedScaleEnabled } from "@/modules/devices/scale/simulated-adapter";
 
 export { STATION_REASONS } from "./station-reasons";
 
@@ -41,6 +47,11 @@ const VALID_SOURCES: readonly StationSource[] = [
   "web_usb",
   "local_bridge",
 ];
+
+/** Fuentes que PUEDEN registrar inventario en PR #3A. */
+const OPERATIONAL_SOURCES: ReadonlySet<string> = new Set(["manual", "simulated"]);
+
+type StationMovementType = ReasonMeta["type"];
 
 /** Prefijo de reference_type por fuente (permite filtrar el historial con LIKE). */
 export function stationReferenceType(source: StationSource): string {
@@ -67,7 +78,8 @@ export type StationMovementInput = {
   note?: string | null;
   lotCode?: string | null;
   expiresAt?: Date | null;
-  supplierId?: string | null;
+  /** Referencia LIBRE del proveedor (no es un ID relacional). */
+  supplierReference?: string | null;
   pieceCount?: number | null;
   idempotencyKey: string;
   actor: { userId?: string; label: string };
@@ -93,6 +105,33 @@ function buildReason(meta: ReasonMeta, input: StationMovementInput): string {
   return parts.join(" — ").slice(0, 400);
 }
 
+/** Fingerprint determinista del request (para detectar reuso de clave con datos distintos). */
+function fingerprint(input: StationMovementInput): string {
+  const canonical = JSON.stringify({
+    v: input.variantId,
+    d: input.direction,
+    q: input.quantityMinor,
+    s: input.source,
+    r: input.reasonCode,
+    n: (input.note ?? "").trim(),
+    l: (input.lotCode ?? "").trim(),
+    e: input.expiresAt ? input.expiresAt.toISOString() : null,
+    sup: (input.supplierReference ?? "").trim(),
+    p: input.pieceCount ?? null,
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+function guardSource(source: StationSource): void {
+  if (!VALID_SOURCES.includes(source)) throw new StationError("Fuente de peso no válida.");
+  if (!OPERATIONAL_SOURCES.has(source)) {
+    throw new StationError("La fuente USB todavía no está habilitada para registrar movimientos.");
+  }
+  if (source === "simulated" && !isSimulatedScaleEnabled()) {
+    throw new StationError("El simulador de balanza no está habilitado en este entorno.");
+  }
+}
+
 /** Registra un movimiento de la estación (entrada o salida) de forma idempotente. */
 export async function recordStationMovement(
   input: StationMovementInput,
@@ -102,7 +141,7 @@ export async function recordStationMovement(
   if (meta.direction !== input.direction) {
     throw new StationError("El motivo no corresponde a la operación elegida.");
   }
-  if (!VALID_SOURCES.includes(input.source)) throw new StationError("Fuente de peso no válida.");
+  guardSource(input.source);
   if (!Number.isInteger(input.quantityMinor) || input.quantityMinor <= 0) {
     throw new StationError("La cantidad debe ser un entero mayor que cero.");
   }
@@ -113,42 +152,55 @@ export async function recordStationMovement(
   if (!key || key.length < 8) throw new StationError("Clave de idempotencia inválida.");
 
   const referenceType = stationReferenceType(input.source);
+  const fp = fingerprint(input);
 
   return db.transaction(async (tx): Promise<StationMovementResult> => {
-    // Serializa reintentos concurrentes con la MISMA clave (namespaced).
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(${STATION_LOCK_NS}::int4, hashtext(${`${referenceType}|${key}`})::int4)`,
-    );
+    // Serializa reintentos concurrentes con la MISMA clave (namespaced por clave,
+    // no por fuente: la clave es la unidad de idempotencia).
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${STATION_LOCK_NS}::int4, hashtext(${key})::int4)`);
 
-    // Idempotencia: ¿ya existe un movimiento para esta (fuente, clave)?
+    // ¿Ya existe un movimiento de estación con esta clave? (cualquier fuente).
     const prior = await tx.query.inventoryMovements.findFirst({
       where: and(
-        eq(inventoryMovements.referenceType, referenceType),
+        like(inventoryMovements.referenceType, "weigh_station_%"),
         eq(inventoryMovements.referenceId, key),
       ),
+      orderBy: (m, { asc }) => [asc(m.createdAt)],
     });
-
-    const variant = await tx.query.productVariants.findFirst({
-      where: eq(productVariants.id, input.variantId),
-    });
-    if (!variant) throw new StationError("Producto (variante) no encontrado.");
 
     if (prior) {
-      // Reintento: no reinserta nada; devuelve el estado actual.
-      const now = await getStock(input.variantId, tx);
+      // Recupera el evento de auditoría original de esta clave para comparar el
+      // fingerprint y devolver el resultado ORIGINAL (no el input nuevo).
+      const priorAudit = await tx.query.auditEvents.findFirst({
+        where: and(
+          eq(auditEvents.action, "inventory.station_movement"),
+          sql`${auditEvents.after}->>'idempotencyKey' = ${key}`,
+        ),
+        orderBy: (a, { asc }) => [asc(a.createdAt)],
+      });
+      if (!priorAudit) throw new StationError("No se pudo verificar el movimiento previo.");
+      const after = (priorAudit.after ?? {}) as Record<string, unknown>;
+      const before = (priorAudit.before ?? {}) as Record<string, unknown>;
+      if (after.fingerprint !== fp) {
+        throw new StationError("La clave de idempotencia ya fue utilizada con otros datos.");
+      }
       return {
         ok: true,
         duplicate: true,
         movementId: prior.id,
         lotId: prior.lotId,
-        reasonCode: input.reasonCode,
-        type: meta.type,
-        quantityMinor: input.quantityMinor,
-        stockBefore: { physical: now.physical, available: now.available },
-        stockAfter: { physical: now.physical, available: now.available },
+        reasonCode: String(after.reasonCode ?? input.reasonCode),
+        type: (after.type as StationMovementType) ?? meta.type,
+        quantityMinor: Number(after.quantityMinor ?? input.quantityMinor),
+        stockBefore: { physical: Number(before.physical ?? 0), available: Number(before.available ?? 0) },
+        stockAfter: { physical: Number(after.physical ?? 0), available: Number(after.available ?? 0) },
       };
     }
 
+    const variant = await tx.query.productVariants.findFirst({
+      where: eq(productVariants.id, input.variantId),
+    });
+    if (!variant) throw new StationError("Producto (variante) no encontrado.");
     const product = await tx.query.products.findFirst({ where: eq(products.id, variant.productId) });
     if (!variant.isActive || !product?.isActive) {
       throw new StationError("El producto está inactivo; actívalo antes de mover inventario.");
@@ -195,19 +247,12 @@ export async function recordStationMovement(
     } else {
       // SALIDA: nunca dejar stock negativo.
       if (before.available < input.quantityMinor) {
-        throw new InsufficientStockError(
-          variant.name,
-          before.available,
-          input.quantityMinor,
-        );
+        throw new InsufficientStockError(variant.name, before.available, input.quantityMinor);
       }
-      // Estrecha el tipo a los válidos de salida (los motivos de entrada nunca
-      // llegan aquí por la validación de `direction` de arriba).
       const outType = meta.type;
       if (outType === "purchase_receipt" || outType === "return_in") {
         throw new StationError("Tipo de movimiento inválido para una salida.");
       }
-      // Consume por FEFO (núcleo compartido) — inserta movimientos negativos.
       await consumeByFefo(tx, {
         variantId: input.variantId,
         locationId,
@@ -247,10 +292,13 @@ export async function recordStationMovement(
         quantityMinor: input.quantityMinor,
         lotCode: input.lotCode?.trim() || null,
         expiresAt: input.expiresAt ? input.expiresAt.toISOString() : null,
-        supplierId: input.supplierId ?? null,
+        supplierReference: input.supplierReference?.trim() || null,
         pieceCount: input.pieceCount ?? null,
         note: input.note?.trim() || null,
         idempotencyKey: key,
+        fingerprint: fp,
+        movementId,
+        lotId,
       },
     });
 
