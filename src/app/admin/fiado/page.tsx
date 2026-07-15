@@ -80,7 +80,6 @@ export default async function FiadoPage() {
           customerId: a.customer.id,
           name: a.customer.fullName,
           phone: a.customer.phone,
-          documentId: a.customer.documentId,
           status: a.account.status,
           limitCop: a.account.limitCop,
           balance: Number(a.balance),

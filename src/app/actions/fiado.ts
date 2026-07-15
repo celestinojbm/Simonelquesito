@@ -37,13 +37,14 @@ const refresh = () => revalidatePath("/admin/fiado");
 
 /**
  * Registrar fiado en mostrador: busca/crea la ficha del cliente por teléfono
- * (con cédula verificada en persona) y abre el Fiado con el registro del
- * personal. La membresía premium NO se toca aquí (se gestiona solo en la app).
+ * (solo nombre, celular y monto) y abre el Fiado con el registro del personal.
+ * La membresía premium NO se toca aquí (se gestiona solo en la app). La cédula
+ * ya no se solicita en el mostrador: un cliente nuevo se crea sin documento y
+ * uno existente conserva intacto el que ya tuviera.
  */
 export async function enrollInStoreAction(input: {
   phone: string;
   fullName: string;
-  documentId: string;
   amountCop: number;
   frequency?: "weekly" | "biweekly";
 }): Promise<Result> {
@@ -53,7 +54,6 @@ export async function enrollInStoreAction(input: {
       .object({
         phone: z.string().min(7),
         fullName: z.string().min(2).max(80),
-        documentId: z.string().min(5).max(15),
         // Monto a fiar: obligatorio para registrar un fiado en el mostrador.
         amountCop: z.number().int().positive(),
         frequency: z.enum(["weekly", "biweekly"]).optional(),
@@ -62,14 +62,15 @@ export async function enrollInStoreAction(input: {
     const phone = normalizePhone(parsed.phone);
     const actor = { userId: user.id, label: `${user.role}:${user.email}` };
 
-    // Ficha del cliente: reutiliza por teléfono o crea; registra la cédula.
+    // Ficha del cliente: reutiliza por teléfono o crea. NO se toca documentId:
+    // un cliente existente conserva su documento; uno nuevo se crea sin él (null).
     let customer = await db.query.customers.findFirst({
       where: sql`right(regexp_replace(${customers.phone}, '[^0-9]', '', 'g'), 10) = ${phone.slice(-10)}`,
     });
     if (customer) {
       await db
         .update(customers)
-        .set({ documentId: parsed.documentId, fullName: customer.fullName || parsed.fullName })
+        .set({ fullName: customer.fullName || parsed.fullName })
         .where(eq(customers.id, customer.id));
     } else {
       const newId = id("cus");
@@ -77,7 +78,6 @@ export async function enrollInStoreAction(input: {
         id: newId,
         fullName: parsed.fullName,
         phone,
-        documentId: parsed.documentId,
       });
       customer = (await db.query.customers.findFirst({ where: eq(customers.id, newId) }))!;
     }

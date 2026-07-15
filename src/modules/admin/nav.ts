@@ -24,7 +24,6 @@ export const BASE_NAV: AdminNavItem[] = [
   { href: "/admin/pedidos", label: "Pedidos", icon: "🧾", perm: "orders.view" },
   { href: "/admin/productos", label: "Productos", icon: "🛍️", perm: "catalog.manage" },
   { href: "/admin/inventario", label: "Inventario", icon: "📦", perm: "inventory.view" },
-  { href: "/admin/mensajes", label: "Mensajes", icon: "💬", perm: "orders.view" },
   { href: "/admin/fiado", label: "Fiado", icon: "📒", perm: "customers.manage" },
   { href: CONFIG_HREF, label: "Configuración", icon: "⚙️", perm: "settings.view", activeFor: ["/admin/configuracion/fondos", "/admin/configuracion/panel"] },
 ];
