@@ -30,10 +30,18 @@ describe("ubicación en el Dashboard", () => {
 
 describe("reglas de la UI de la estación", () => {
   const ui = read("src/app/admin/weigh-station/weigh-station.tsx");
-  it("ofrece modo Manual y NO afirma que la Marker-30 esté conectada/certificada", () => {
+  it("ofrece modo Manual y NO afirma FALSAMENTE que la Marker-30 esté lista", () => {
     expect(ui).toContain("Manual");
-    expect(ui).toContain("pendiente de una prueba física");
-    expect(ui).not.toMatch(/Marker-30[^.]{0,40}(conectada|certificada|lista)/i);
+    // No debe haber una afirmación POSITIVA de conexión/certificación de la Marker-30.
+    expect(ui).not.toMatch(/Marker-30 (ya |sí )?(está|queda) (conectada|certificada|lista)/i);
+    // Sí debe estar el encuadre honesto de "pendiente".
+    expect(ui.toLowerCase()).toMatch(/pendiente de (certificación|prueba)/);
+  });
+  it("#1 la balanza USB es solo diagnóstico: no usa useScaleWeight en el flujo operativo", () => {
+    expect(ui).not.toContain("useScaleWeight");
+    expect(ui).toContain("Conexión USB pendiente de certificación");
+    // El tipo de fuente operativa de la UI es solo manual/simulated.
+    expect(ui).toContain('type WeightSource = "manual" | "simulated"');
   });
   it("dirige las ventas a Caja", () => {
     expect(ui).toContain("Las ventas se registran desde Caja");
@@ -41,6 +49,10 @@ describe("reglas de la UI de la estación", () => {
   });
   it("el simulador se muestra solo si está habilitado explícitamente", () => {
     expect(ui).toContain("isSimulatedScaleEnabled");
+  });
+  it("#9 el proveedor es una referencia libre, no un supplierId", () => {
+    expect(ui).toContain("supplierReference");
+    expect(ui).not.toContain("supplierId");
   });
 });
 

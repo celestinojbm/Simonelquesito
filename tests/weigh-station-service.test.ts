@@ -94,7 +94,7 @@ describe("entradas", () => {
 
   it("guarda proveedor y número de piezas en la auditoría", async () => {
     const r = await recordStationMovement(
-      baseInput({ quantityMinor: 1000, supplierId: "sup_test", pieceCount: 4, note: "caja", idempotencyKey: "ws-aud-cccc" }),
+      baseInput({ quantityMinor: 1000, supplierReference: "Proveedor XYZ", pieceCount: 4, note: "caja", idempotencyKey: "ws-aud-cccc" }),
     );
     expect(r.ok).toBe(true);
     const [aud] = await db
@@ -105,7 +105,7 @@ describe("entradas", () => {
       .limit(1);
     expect(aud).toBeTruthy();
     const after = aud!.after as Record<string, unknown>;
-    expect(after.supplierId).toBe("sup_test");
+    expect(after.supplierReference).toBe("Proveedor XYZ");
     expect(after.pieceCount).toBe(4);
   });
 
