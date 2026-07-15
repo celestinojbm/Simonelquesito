@@ -17,7 +17,6 @@ type AccountRow = {
   customerId: string;
   name: string;
   phone: string;
-  documentId: string | null;
   status: string;
   limitCop: number;
   balance: number;
@@ -54,7 +53,7 @@ export function FiadoConsole({
   const toast = useToast();
 
   // Registrar fiado en mostrador (sin membresía: la premium es solo por app).
-  const EMPTY_ENROLL = { phone: "", fullName: "", documentId: "", amountCop: "" };
+  const EMPTY_ENROLL = { phone: "", fullName: "", amountCop: "" };
   const [enroll, setEnroll] = useState(EMPTY_ENROLL);
   // Formularios por cuenta seleccionada
   const [purchase, setPurchase] = useState({ totalCop: "", frequency: "weekly" as "weekly" | "biweekly", note: "" });
@@ -86,13 +85,10 @@ export function FiadoConsole({
 
       {/* Registrar fiado en mostrador */}
       <section className="rounded-card border border-brand-soft bg-white p-4">
-        <h2 className="mb-3 font-bold text-ink">🪪 Registrar fiado</h2>
+        <h2 className="mb-3 font-bold text-ink">📒 Registrar fiado</h2>
         <div className="grid gap-2 md:grid-cols-3">
-          <input placeholder="Celular" value={enroll.phone} onChange={(e) => setEnroll({ ...enroll, phone: e.target.value })} className={inputCls} />
           <input placeholder="Nombre completo" value={enroll.fullName} onChange={(e) => setEnroll({ ...enroll, fullName: e.target.value })} className={inputCls} />
-          <input placeholder="Cédula" value={enroll.documentId} onChange={(e) => setEnroll({ ...enroll, documentId: e.target.value })} className={inputCls} />
-        </div>
-        <div className="mt-2 grid gap-2 md:grid-cols-3">
+          <input placeholder="Celular" value={enroll.phone} onChange={(e) => setEnroll({ ...enroll, phone: e.target.value })} className={inputCls} />
           <input
             placeholder="Monto a fiar"
             inputMode="numeric"
@@ -105,9 +101,8 @@ export function FiadoConsole({
           type="button"
           disabled={
             pending ||
-            !enroll.phone ||
             enroll.fullName.trim().length < 2 ||
-            enroll.documentId.trim().length < 5 ||
+            !enroll.phone ||
             Number(enroll.amountCop) <= 0
           }
           onClick={() =>
@@ -115,7 +110,6 @@ export function FiadoConsole({
               () => enrollInStoreAction({
                 phone: enroll.phone,
                 fullName: enroll.fullName,
-                documentId: enroll.documentId,
                 amountCop: Number(enroll.amountCop),
               }),
               "Fiado registrado con su plan de cuotas.",
@@ -152,7 +146,7 @@ export function FiadoConsole({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="font-semibold text-ink">{a.name}</span>{" "}
-                    <span className="text-xs text-ink-soft">{a.phone}{a.documentId ? ` · CC ${a.documentId}` : ""}</span>
+                    <span className="text-xs text-ink-soft">{a.phone}</span>
                   </span>
                   <span className="text-sm font-bold text-ink">{cop(a.balance)} <span className="font-normal text-ink-soft">/ {cop(a.limitCop)}</span></span>
                   {a.overdue > 0 && <span className="rounded-full bg-coral px-2 py-0.5 text-xs font-bold text-white">{a.overdue} vencida{a.overdue > 1 ? "s" : ""}</span>}

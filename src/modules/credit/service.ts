@@ -265,11 +265,11 @@ export async function openCreditAccount(params: {
 
     // El Fiado NO exige membresía: la membresía premium es un beneficio aparte
     // (se gestiona solo en la app). El fiado se abre por sí solo.
-    if (params.channel === "in_store" && !customer.documentId) {
-      throw new CreditError(
-        "Para registrar el fiado en tienda anota primero la cédula del cliente (verificada en persona).",
-      );
-    }
+    //
+    // El registro en mostrador ya NO exige cédula: se abre solo con nombre,
+    // celular y monto (ver enrollInStoreAction). Si el cliente ya tuviera un
+    // documento almacenado, se conserva; no se solicita ni se exige aquí. El
+    // canal en línea mantiene TODAS sus verificaciones (identidad incluida).
     if (params.channel === "online") {
       // Verificaciones del canal en línea: teléfono, correo e identidad (18+)
       // según credit.rules.
