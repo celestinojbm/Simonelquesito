@@ -5,11 +5,14 @@ import { orders, orderItems, productVariants, products, inventoryMovements, cust
 import { formatCop } from "@/lib/format";
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/modules/orders/state";
 import { getSessionUser } from "@/lib/auth/session";
+import { roleHas } from "@/lib/auth/permissions";
 import { getSetting } from "@/modules/config/service";
 import { dashboardCardsForRole } from "@/modules/admin/dashboard";
 import { listExpiringLots } from "@/modules/inventory/service";
+import { listRecentStationMovements } from "@/modules/inventory/weigh-station-queries";
 import { DashboardTabs } from "./dashboard-tabs";
 import { PanelBlocks } from "./panel-blocks";
+import { WeighStation } from "./weigh-station/weigh-station";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard · Admin" };
@@ -87,14 +90,28 @@ export default async function AdminDashboard() {
   ];
 
   // Tarjetas visibles y en orden según la configuración por rol (Nivel 2).
-  const [user, panel] = await Promise.all([getSessionUser(), getSetting("admin.panel")]);
+  const [user, panel, recentStation] = await Promise.all([
+    getSessionUser(),
+    getSetting("admin.panel"),
+    listRecentStationMovements(10),
+  ]);
   const byKey = new Map(allCards.map((c) => [c.key, c]));
   const cards = dashboardCardsForRole(panel.dashboard, user?.role ?? "owner", allCards.map((c) => c.key))
     .map((k) => byKey.get(k)!)
     .filter(Boolean);
 
+  const role = user?.role ?? "owner";
+
   return (
     <div className="space-y-6">
+      {/* Estación de balanza y escáner: primer elemento operativo del panel
+          (no configurable/ocultable en esta primera versión). */}
+      <WeighStation
+        recent={recentStation}
+        canReceive={roleHas(role, "inventory.receive")}
+        canAdjust={roleHas(role, "inventory.adjust")}
+      />
+
       <DashboardTabs />
 
       {/* Bloques personalizados del inicio (Nivel 3), configurados por el dueño. */}

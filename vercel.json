@@ -3,7 +3,7 @@
   "buildCommand": "next build",
   "git": {
     "deploymentEnabled": {
-      "feat/fiado-sin-cedula-ocultar-mensajes": false
+      "feat/dashboard-weigh-station-foundation": false
     }
   }
 }
