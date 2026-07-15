@@ -8,6 +8,7 @@
  *
  * La base de datos es la fuente de verdad: nada de precio, stock, unidad, rol ni
  * actor se toma del cliente. Las VENTAS no se registran aquí (van por Caja).
+ * Los errores inesperados se devuelven genéricos (no se filtra SQL/Drizzle/stack).
  */
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -36,6 +37,17 @@ export type MovementActionResult =
   | { ok: true; result: StationMovementResult }
   | { ok: false; message: string };
 
+const GENERIC_ERROR = "No se pudo completar la operación. Intenta nuevamente.";
+
+/** Mensaje seguro: específico solo para errores conocidos; genérico para el resto. */
+function toSafeMessage(e: unknown): string {
+  if (e instanceof z.ZodError) return e.issues[0]?.message ?? "Datos inválidos";
+  if (e instanceof StationError || e instanceof InsufficientStockError) return e.message;
+  // Error de permisos (requirePermission lanza un Error con este prefijo conocido).
+  if (e instanceof Error && e.message.startsWith("No autorizado")) return e.message;
+  return GENERIC_ERROR;
+}
+
 /** Resuelve un código exacto (barcode o SKU). */
 export async function stationLookupAction(code: string): Promise<LookupResult> {
   try {
@@ -45,8 +57,7 @@ export async function stationLookupAction(code: string): Promise<LookupResult> {
     if (!item) return { ok: false, message: `Producto no encontrado para el código ${clean}.` };
     return { ok: true, item };
   } catch (e) {
-    if (e instanceof z.ZodError) return { ok: false, message: e.issues[0]?.message ?? "Código inválido" };
-    return { ok: false, message: e instanceof Error ? e.message : "Error inesperado" };
+    return { ok: false, message: toSafeMessage(e) };
   }
 }
 
@@ -58,8 +69,7 @@ export async function stationSearchAction(query: string): Promise<SearchResult> 
     const items = await searchStationItems(clean);
     return { ok: true, items };
   } catch (e) {
-    if (e instanceof z.ZodError) return { ok: false, message: e.issues[0]?.message ?? "Búsqueda inválida" };
-    return { ok: false, message: e instanceof Error ? e.message : "Error inesperado" };
+    return { ok: false, message: toSafeMessage(e) };
   }
 }
 
@@ -72,7 +82,7 @@ const movementSchema = z.object({
   note: z.string().max(400).optional(),
   lotCode: z.string().max(60).optional(),
   expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida").optional(),
-  supplierId: z.string().max(80).optional(),
+  supplierReference: z.string().max(80).optional(),
   pieceCount: z.number().int().nonnegative().optional(),
   idempotencyKey: z.string().min(8).max(80),
 });
@@ -94,7 +104,7 @@ export async function stationMovementAction(
       note: data.note || null,
       lotCode: data.lotCode || null,
       expiresAt: data.expiresAt ? new Date(`${data.expiresAt}T00:00:00`) : null,
-      supplierId: data.supplierId || null,
+      supplierReference: data.supplierReference || null,
       pieceCount: data.pieceCount ?? null,
       idempotencyKey: data.idempotencyKey,
       actor: { userId: user.id, label: `${user.role}:${user.email}` },
@@ -103,10 +113,6 @@ export async function stationMovementAction(
     revalidatePath("/admin/inventario");
     return { ok: true, result };
   } catch (e) {
-    if (e instanceof z.ZodError) return { ok: false, message: e.issues[0]?.message ?? "Datos inválidos" };
-    if (e instanceof StationError || e instanceof InsufficientStockError) {
-      return { ok: false, message: e.message };
-    }
-    return { ok: false, message: e instanceof Error ? e.message : "Error inesperado" };
+    return { ok: false, message: toSafeMessage(e) };
   }
 }
