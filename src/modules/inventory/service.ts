@@ -110,13 +110,13 @@ export async function releaseReservations(tx: DbOrTx, orderId: string): Promise<
  * cantidad, el remanente cae a un movimiento sin lote — comportamiento
  * idéntico al de antes de existir lotes.
  */
-async function consumeByFefo(
+export async function consumeByFefo(
   tx: DbOrTx,
   params: {
     variantId: string;
     locationId: string;
     qty: number;
-    type: "sale" | "shrinkage" | "adjustment";
+    type: "sale" | "shrinkage" | "adjustment" | "return_out";
     reason?: string;
     referenceType: string;
     referenceId: string;
