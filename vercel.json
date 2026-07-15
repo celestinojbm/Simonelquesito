@@ -3,7 +3,7 @@
   "buildCommand": "next build",
   "git": {
     "deploymentEnabled": {
-      "fix/p0-disable-production-demo-access": false
+      "feat/fiado-sin-cedula-ocultar-mensajes": false
     }
   }
 }
