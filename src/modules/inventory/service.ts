@@ -110,19 +110,25 @@ export async function releaseReservations(tx: DbOrTx, orderId: string): Promise<
  * cantidad, el remanente cae a un movimiento sin lote — comportamiento
  * idéntico al de antes de existir lotes.
  */
-async function consumeByFefo(
+export async function consumeByFefo(
   tx: DbOrTx,
   params: {
     variantId: string;
     locationId: string;
     qty: number;
-    type: "sale" | "shrinkage" | "adjustment";
+    type: "sale" | "shrinkage" | "adjustment" | "return_out";
     reason?: string;
     referenceType: string;
     referenceId: string;
     createdBy: string;
   },
 ): Promise<void> {
+  // Lock pesimista de la variante ANTES de leer las cantidades de los lotes:
+  // serializa a TODOS los consumidores de FEFO (ventas y estación de balanza),
+  // evitando actualizaciones perdidas de `qtyRemaining` por lecturas obsoletas.
+  // No cambia el orden FEFO. Re-lockear la misma fila dentro de la transacción
+  // del llamador es inocuo.
+  await tx.execute(sql`SELECT id FROM product_variants WHERE id = ${params.variantId} FOR UPDATE`);
   let remaining = params.qty;
   const lots = await tx.query.inventoryLots.findMany({
     where: and(eq(inventoryLots.variantId, params.variantId), sql`${inventoryLots.qtyRemaining} > 0`),
